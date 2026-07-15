@@ -8,7 +8,7 @@
   :root{
     --navy:#1b1b4b; --indigo:#4b4fd6;
     --bg:#f4f5fb; --card:#fff; --line:#e4e6f2; --txt:#20233f; --mut:#7a7fa3;
-    --ok:#2ecc71; --curso:#f1a53c; --conf:#4b7fd6; --pend:#a9adc7;
+    --ok:#2ecc71; --curso:#f1a53c; --conf:#4b7fd6; --pend:#a9adc7; --baja:#c0392b;
     --e1:#4b4fd6; --e2:#00b3a4;
   }
   *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
@@ -72,8 +72,9 @@
   .pill{font-size:11px;padding:3px 9px;border-radius:20px;font-weight:600}
   .p-pend{background:#eef0f7;color:var(--pend)} .p-curso{background:#fdf0dd;color:var(--curso)}
   .p-conf{background:#e0ebfb;color:var(--conf)} .p-lanz{background:#dcf7e6;color:var(--ok)}
-  .hc-link{font-size:12px;color:var(--e2);text-decoration:none;white-space:nowrap;font-weight:600}
-  .hc-link:hover{text-decoration:underline}
+  .p-baja{background:#fbe3e0;color:var(--baja)}
+  .hc-link{font-size:13px;color:#fff;background:var(--e2);text-decoration:none;white-space:nowrap;font-weight:700;padding:7px 13px;border-radius:9px;display:inline-flex;align-items:center;gap:5px}
+  .hc-link:hover{filter:brightness(1.08)}
   .section-title{font-size:18px;font-weight:800;color:var(--navy);margin:28px 0 6px;display:flex;align-items:center;gap:9px}
   .section-title .badge{font-size:11px;font-weight:700;color:#fff;background:var(--e2);padding:3px 10px;border-radius:20px}
   .hidden{display:none} .note{color:var(--mut);font-size:12px;margin-top:6px}
@@ -95,6 +96,7 @@
     .gbar{background:#4b4fd6!important;color:transparent!important}
     .gbar.hito{background:#1b1b4b!important}
     .bar>span{background:#4b4fd6!important}
+    .hc-link{background:#00b3a4!important;color:#fff!important}
     .print-empty{display:none!important}
   }
 </style>
@@ -160,7 +162,8 @@
 <div class="savetoast" id="toast">Avances guardados ✓</div>
 
 
- <script>
+
+  <script>
 const HC="https://help.humand.co/hc/es-419/";
 const CATALOGO = {
   "Comunicación":[
@@ -199,21 +202,15 @@ const CATALOGO = {
   ]
 };
 const SEMANAS=6;
-// estados: agregamos "No se implementa" (baja) que excluye del cálculo de avance
 const ESTADOS=["Pendiente","En curso","Configurado","Lanzado","No se implementa"];
 const PILL={"Pendiente":"p-pend","En curso":"p-curso","Configurado":"p-conf","Lanzado":"p-lanz","No se implementa":"p-baja"};
 const PESO={"Pendiente":0,"En curso":0.4,"Configurado":0.75,"Lanzado":1};
 const BAJA="No se implementa";
 const HITOS=[["Revisión Final",SEMANAS-1],["Lanzamiento",SEMANAS]];
-
-// KEY: si el archivo fue exportado trae su propia clave única; si no, la del generador
 const KEY=(window.__STORAGE_KEY__)||"humand_plan_v6";
-
 const ALLMODS=function(){return Object.values(CATALOGO).flat().map(function(x){return x[0];});};
 function modInfo(name){for(var c in CATALOGO){var f=CATALOGO[c].find(function(x){return x[0]===name;});if(f)return f;}return null;}
 
-// ===== ARRANQUE CORREGIDO =====
-// 1) localStorage manda (avance guardado). 2) si no hay, usa el PRELOAD incrustado. 3) si no, vacío.
 var saved=load();
 var state = saved || (window.__PRELOAD__?JSON.parse(JSON.stringify(window.__PRELOAD__)):null) || {cliente:"",fInicio:"",fLanz:"",fReunion:"",asign:{},mods:{},steps:[],notasInternas:"",hitos:{}};
 var vieneDePreload = !saved && !!window.__PRELOAD__;
@@ -257,7 +254,6 @@ function weekOptions(sel){
   for(var w=1;w<=SEMANAS;w++)o+='<option value="'+w+'" '+(w===sel?"selected":"")+">Semana "+w+"</option>";
   return o;
 }
-// módulos activos de una etapa = asignados a esa etapa Y no dados de baja
 function modsEtapa(etapa){return ALLMODS().filter(function(m){return state.asign[m]===etapa && state.mods[m].estado!==BAJA;});}
 function progOf(list){
   var act=list.filter(function(m){return state.mods[m].estado!==BAJA;});
@@ -359,6 +355,7 @@ function renderDash(){
 
   renderSteps();
   g("notasInternas").value=state.notasInternas||"";
+  aplicarModoCliente();
 }
 
 function renderTasks(etapa,conFecha){
@@ -386,9 +383,11 @@ function renderTasks(etapa,conFecha){
         +tag+fechaCtrl
         +'<span class="pill '+PILL[dd.estado]+'">'+dd.estado+'</span>'
         +'<select class="status-sel" onchange="setF(\''+esc(m)+'\',\'estado\',this.value)">'+opts+'</select>'
-        +'<a class="hc-link" href="'+url+'" target="_blank" rel="noopener">📖 Help Center</a>'
-        +'</div><div class="task-meta"><span class="mlbl">Responsable</span>'
-        +'<input type="text" placeholder="Completar responsable" value="'+eq(dd.resp||"")+'" oninput="setF(\''+esc(m)+'\',\'resp\',this.value)"></div></div>';
+        +'</div>'
+        +'<div class="task-meta"><span class="mlbl">Responsable</span>'
+        +'<input type="text" placeholder="Completar responsable" value="'+eq(dd.resp||"")+'" oninput="setF(\''+esc(m)+'\',\'resp\',this.value)"></div>'
+        +'<div style="margin-top:10px"><a class="hc-link" href="'+url+'" target="_blank" rel="noopener">📖 Ver tutorial en el Help Center →</a></div>'
+        +'</div>';
     });
     html+="</div>";
   }
@@ -436,7 +435,6 @@ function imprimir(){
 
 function exportHTML(){
   save();
-  // clave única para el archivo del cliente (para que su avance no se mezcle con el generador)
   var uniqueKey="humand_plan_"+((state.cliente||"cliente").toLowerCase().replace(/[^a-z0-9]+/g,"_"))+"_"+Date.now();
   var doc="<!DOCTYPE html>\n"+document.documentElement.outerHTML;
   var inject="<scr"+"ipt>window.__PRELOAD__="+JSON.stringify(state)+";window.__STORAGE_KEY__="+JSON.stringify(uniqueKey)+";</scr"+"ipt>";
@@ -446,8 +444,21 @@ function exportHTML(){
   a.href=URL.createObjectURL(blob);a.download="index.html";a.click();
 }
 
+// modo cliente = archivo exportado (trae PRELOAD): sin editar config ni exportar
+var MODO_CLIENTE = !!window.__PRELOAD__;
+function aplicarModoCliente(){
+  if(!MODO_CLIENTE) return;
+  var btnEditar=document.querySelector('button[onclick="volver()"]');
+  var btnExport=document.querySelector('button[onclick="exportHTML()"]');
+  if(btnEditar) btnEditar.style.display="none";
+  if(btnExport) btnExport.style.display="none";
+}
+
 // arranque
 if(vieneDePreload){g("config").classList.add("hidden");g("dashboard").classList.remove("hidden");renderDash();}
 else if(saved && saved.fInicio){g("config").classList.add("hidden");g("dashboard").classList.remove("hidden");renderDash();}
 else renderConfig();
+aplicarModoCliente();
 </script>
+</body>
+</html>
