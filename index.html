@@ -3,307 +3,462 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard de Implementación</title>
+<title>Plan de Implementación · Humand</title>
 <style>
   :root{
-    --bg:#0f1221; --card:#1a1e33; --card2:#232842; --line:#2e3450;
-    --txt:#e8eaf2; --mut:#9aa2c0; --acc:#6c5ce7; --acc2:#00c9a7;
-    --ok:#2ecc71; --warn:#f1c40f; --prog:#3498db; --pend:#7f8c9b; --off:#4a5068;
+    --navy:#1b1b4b; --indigo:#4b4fd6;
+    --bg:#f4f5fb; --card:#fff; --line:#e4e6f2; --txt:#20233f; --mut:#7a7fa3;
+    --ok:#2ecc71; --curso:#f1a53c; --conf:#4b7fd6; --pend:#a9adc7; --baja:#c0392b;
+    --e1:#4b4fd6; --e2:#00b3a4;
   }
-  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif}
-  body{background:linear-gradient(135deg,#0f1221,#141830);color:var(--txt);min-height:100vh;padding:24px}
-  .wrap{max-width:1150px;margin:0 auto}
-  h1{font-size:24px;margin-bottom:4px}
-  h2{font-size:17px;margin:22px 0 12px;color:var(--acc2);border-left:3px solid var(--acc2);padding-left:10px}
-  .sub{color:var(--mut);font-size:13px;margin-bottom:20px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px}
-  label{display:block;font-size:12px;color:var(--mut);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
-  input[type=text],input[type=date],input[type=url],textarea{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:10px;color:var(--txt);font-size:14px}
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+  body{background:var(--bg);color:var(--txt);min-height:100vh}
+  .logo{font-size:30px;font-weight:800;letter-spacing:-1px;color:var(--navy)}
+  .wrap{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
+  h1{font-size:23px} h2{font-size:16px;margin:26px 0 12px;color:var(--navy)}
+  .sub{color:var(--mut);font-size:13px;margin-top:4px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;margin-bottom:16px;box-shadow:0 1px 3px rgba(27,27,75,.04)}
+  label{display:block;font-size:11px;color:var(--mut);margin-bottom:5px;text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+  input[type=text],input[type=date],textarea{width:100%;background:#fbfbfe;border:1px solid var(--line);border-radius:9px;padding:10px;color:var(--txt);font-size:14px}
   textarea{resize:vertical;min-height:70px;font-family:inherit}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
-  button{cursor:pointer;border:none;border-radius:9px;padding:11px 18px;font-size:14px;font-weight:600;transition:.15s}
-  .btn-primary{background:var(--acc);color:#fff}
-  .btn-primary:hover{filter:brightness(1.12)}
-  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
-  .btn-ghost:hover{background:var(--card2)}
-  .btn-sm{padding:6px 11px;font-size:12px}
+  button{cursor:pointer;border:none;border-radius:10px;padding:11px 18px;font-size:14px;font-weight:600;transition:.15s}
+  .btn-primary{background:var(--indigo);color:#fff}
+  .btn-primary:hover{filter:brightness(1.08)}
+  .btn-ghost{background:#fff;border:1px solid var(--line);color:var(--txt)}
+  .btn-ghost:hover{background:#f0f1fa}
+  .btn-sm{padding:7px 12px;font-size:12px}
   .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
-  .mod-row{display:flex;align-items:center;justify-content:space-between;background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:9px 12px;margin-bottom:8px;gap:10px;flex-wrap:wrap}
-  .mod-name{font-size:14px;flex:1;min-width:140px}
-  .seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
-  .seg button{padding:6px 11px;font-size:12px;background:transparent;color:var(--mut);border-radius:0}
-  .seg button.on-e1{background:var(--ok);color:#06210f}
-  .seg button.on-e2{background:var(--prog);color:#04203a}
-  .seg button.on-off{background:var(--off);color:#fff}
-  /* Dashboard */
-  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:16px}
-  .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
-  .kpi .n{font-size:26px;font-weight:700}
-  .kpi .l{color:var(--mut);font-size:12px;margin-top:3px}
-  .bar{height:10px;background:var(--card2);border-radius:20px;overflow:hidden;margin-top:8px}
-  .bar>span{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2));border-radius:20px;transition:width .4s}
-  .timeline{position:relative;height:46px;background:var(--card2);border-radius:10px;margin:14px 0;overflow:hidden}
-  .timeline .fill{position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,rgba(108,92,231,.5),rgba(0,201,167,.5))}
-  .timeline .lbl{position:absolute;top:50%;transform:translateY(-50%);font-size:12px;padding:0 12px}
-  .timeline .lbl.r{right:0}
-  .catbox{margin-bottom:14px}
-  .cattitle{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:15px;font-weight:600}
-  .cattitle small{color:var(--mut);font-weight:400}
-  .task{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-bottom:9px}
+  .header{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px}
+  .mod-row{display:flex;align-items:center;justify-content:space-between;background:#fbfbfe;border:1px solid var(--line);border-radius:10px;padding:9px 13px;margin-bottom:8px;gap:10px;flex-wrap:wrap}
+  .mod-name{font-size:14px;flex:1;min-width:150px}
+  .seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{padding:7px 12px;font-size:12px;background:#fff;color:var(--mut);border-radius:0;font-weight:600}
+  .seg button.on-e1{background:var(--e1);color:#fff}
+  .seg button.on-e2{background:var(--e2);color:#fff}
+  .seg button.on-off{background:#c9cce0;color:#fff}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:16px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:17px;box-shadow:0 1px 3px rgba(27,27,75,.04)}
+  .kpi .n{font-size:27px;font-weight:800;color:var(--navy)} .kpi .l{color:var(--mut);font-size:12px;margin-top:3px}
+  .bar{height:10px;background:#edeef7;border-radius:20px;overflow:hidden;margin-top:9px}
+  .bar>span{display:block;height:100%;background:linear-gradient(90deg,var(--indigo),var(--e2));border-radius:20px;transition:width .4s}
+  .gantt{overflow-x:auto}
+  .gtable{border-collapse:collapse;width:100%;min-width:640px;font-size:13px}
+  .gtable th{background:var(--navy);color:#fff;padding:9px 8px;font-weight:600;text-align:center;font-size:12px}
+  .gtable th.tl{text-align:left;min-width:200px}
+  .gtable td{border-bottom:1px solid var(--line);padding:0;height:34px;position:relative}
+  .gtable td.lbl{padding:6px 10px;font-weight:600;color:var(--navy)}
+  .gcell{width:70px;transition:background .12s}
+  .gcell.drop-hover{background:#e0e2fb;box-shadow:inset 0 0 0 2px var(--indigo)}
+  .gbar{height:18px;border-radius:5px;margin:0 3px;background:var(--e1);cursor:grab;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.65);font-size:10px;user-select:none}
+  .gbar:active{cursor:grabbing;opacity:.6}
+  .gbar.hito{background:#1b1b4b}
+  .weekdate{font-size:10px;color:#c7cae0;font-weight:400;display:block}
+  .mini-sel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px 7px;color:var(--indigo);font-size:11px;font-weight:600;cursor:pointer}
+  .cattitle{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:15px;font-weight:700;color:var(--navy)}
+  .cattitle small{color:var(--mut);font-weight:500}
+  .task{background:#fbfbfe;border:1px solid var(--line);border-radius:11px;padding:12px 14px;margin-bottom:9px}
   .task-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .task .tname{flex:1;min-width:150px;font-size:14px;font-weight:600}
-  .task .etapa{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700}
-  .e1tag{background:rgba(46,204,113,.18);color:var(--ok)}
-  .e2tag{background:rgba(52,152,219,.18);color:var(--prog)}
-  .task-meta{display:grid;grid-template-columns:2fr 1.3fr 1fr;gap:8px;margin-top:9px}
+  .task .tname a{color:var(--indigo);text-decoration:none}
+  .task .tname a:hover{text-decoration:underline}
+  .etapa{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;color:#fff}
+  .etapa.e1{background:var(--e1)} .etapa.e2{background:var(--e2)}
+  .duetag{font-size:11px;color:var(--indigo);background:#e7e8fb;padding:2px 8px;border-radius:20px;font-weight:600}
+  .task-meta{margin-top:9px;max-width:340px}
   .task-meta input{padding:7px 9px;font-size:12.5px}
   .task-meta .mlbl{font-size:10px;color:var(--mut);margin-bottom:3px;text-transform:uppercase;letter-spacing:.4px;display:block}
-  .status-sel{background:var(--card);border:1px solid var(--line);border-radius:7px;padding:6px 9px;color:var(--txt);font-size:12px}
-  .link-open{font-size:12px;color:var(--acc2);text-decoration:none;white-space:nowrap}
-  .link-open:hover{text-decoration:underline}
-  .pill{font-size:11px;padding:3px 9px;border-radius:20px}
-  .p-pend{background:rgba(127,140,155,.2);color:var(--pend)}
-  .p-curso{background:rgba(241,196,15,.18);color:var(--warn)}
-  .p-conf{background:rgba(52,152,219,.18);color:var(--prog)}
-  .p-lanz{background:rgba(46,204,113,.18);color:var(--ok)}
-  .hidden{display:none}
-  .note{color:var(--mut);font-size:12px;margin-top:6px}
-  .topbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:8px}
-  /* checklist pasos */
-  .step{display:flex;align-items:center;gap:10px;background:var(--card2);border:1px solid var(--line);border-radius:9px;padding:9px 12px;margin-bottom:7px}
-  .step input[type=checkbox]{width:18px;height:18px;accent-color:var(--acc2);cursor:pointer;flex-shrink:0}
+  .status-sel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px 9px;color:var(--txt);font-size:12px;font-weight:600}
+  .pill{font-size:11px;padding:3px 9px;border-radius:20px;font-weight:600}
+  .p-pend{background:#eef0f7;color:var(--pend)} .p-curso{background:#fdf0dd;color:var(--curso)}
+  .p-conf{background:#e0ebfb;color:var(--conf)} .p-lanz{background:#dcf7e6;color:var(--ok)}
+  .p-baja{background:#fbe3e0;color:var(--baja)}
+  .hc-link{font-size:13px;color:#fff;background:var(--e2);text-decoration:none;white-space:nowrap;font-weight:700;padding:7px 13px;border-radius:9px;display:inline-flex;align-items:center;gap:5px}
+  .hc-link:hover{filter:brightness(1.08)}
+  .section-title{font-size:18px;font-weight:800;color:var(--navy);margin:28px 0 6px;display:flex;align-items:center;gap:9px}
+  .section-title .badge{font-size:11px;font-weight:700;color:#fff;background:var(--e2);padding:3px 10px;border-radius:20px}
+  .hidden{display:none} .note{color:var(--mut);font-size:12px;margin-top:6px}
+  .step{display:flex;align-items:center;gap:10px;background:#fbfbfe;border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-bottom:7px}
+  .step input[type=checkbox]{width:18px;height:18px;accent-color:var(--indigo);cursor:pointer;flex-shrink:0}
   .step input[type=text]{border:none;background:transparent;flex:1;padding:2px}
   .step.done input[type=text]{text-decoration:line-through;color:var(--mut)}
-  .step .del{background:transparent;color:var(--mut);padding:4px 8px;font-size:16px;line-height:1}
+  .step .del{background:transparent;color:var(--mut);padding:4px 8px;font-size:16px}
   .step .del:hover{color:#e74c3c}
-  @media print{body{background:#fff;color:#000}.no-print{display:none}.card,.kpi{border-color:#ccc}}
+  .savetoast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 20px;border-radius:30px;font-size:13px;font-weight:600;opacity:0;transition:.3s;pointer-events:none;z-index:99}
+  .savetoast.show{opacity:1}
+  @media print{
+    body{background:#fff}
+    .no-print{display:none!important}
+    *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
+    .card,.kpi{border-color:#ccc;box-shadow:none;break-inside:avoid}
+    .task{break-inside:avoid}
+    .gtable th{background:#1b1b4b!important;color:#fff!important}
+    .gbar{background:#4b4fd6!important;color:transparent!important}
+    .gbar.hito{background:#1b1b4b!important}
+    .bar>span{background:#4b4fd6!important}
+    .hc-link{background:#00b3a4!important;color:#fff!important}
+    .print-empty{display:none!important}
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
-
-  <!-- ====== CONFIG ====== -->
   <div id="config">
-    <h1>⚙️ Generador de Dashboard de Implementación</h1>
-    <p class="sub">Cargá los datos del proyecto y elegí qué módulos entran en cada etapa. El dashboard se arma solo.</p>
-
-    <div class="card">
-      <div class="grid">
-        <div><label>Cliente</label><input type="text" id="cliente" placeholder="Nombre del cliente"></div>
-        <div><label>Fecha de inicio de implementación</label><input type="date" id="fInicio"></div>
-        <div><label>Fecha tentativa de lanzamiento</label><input type="date" id="fLanz"></div>
-        <div><label>Próxima reunión (opcional)</label><input type="date" id="fReunion"></div>
-      </div>
-    </div>
-
+    <div class="logo">humand</div>
+    <h1 style="margin-top:10px">Generador de Plan de Implementación</h1>
+    <p class="sub">Cargá los datos del proyecto y definí qué módulos van en cada etapa. Los recursos del Help Center ya están precargados.</p>
+    <div class="card" style="margin-top:18px"><div class="grid">
+      <div><label>Cliente</label><input type="text" id="cliente" placeholder="Nombre del cliente"></div>
+      <div><label>Semana de inicio de implementación</label><input type="date" id="fInicio"></div>
+      <div><label>Semana de lanzamiento</label><input type="date" id="fLanz"></div>
+      <div><label>Próxima reunión (opcional)</label><input type="date" id="fReunion"></div>
+    </div></div>
     <h2>Módulos por etapa</h2>
-    <p class="note">🟢 E1 = primera etapa (lanzamiento) · 🔵 E2 = segunda etapa (post-lanzamiento) · ⚪ No = no se implementa.</p>
+    <p class="note">Etapa 1 = lanzamiento inicial (entra al cronograma) · Etapa 2 = post-lanzamiento · No implementa = queda fuera.</p>
     <div class="card" id="modConfig"></div>
-
     <div class="actions no-print">
-      <button class="btn-primary" onclick="generar()">🚀 Generar dashboard</button>
+      <button class="btn-primary" onclick="generar()">Generar plan</button>
       <button class="btn-ghost" onclick="marcarTodo('e1')">Todos a Etapa 1</button>
       <button class="btn-ghost" onclick="marcarTodo('off')">Ninguno</button>
     </div>
   </div>
-
-  <!-- ====== DASHBOARD ====== -->
   <div id="dashboard" class="hidden">
-    <div class="topbar">
-      <div>
-        <h1 id="dTitulo">Proyecto</h1>
-        <p class="sub" id="dSub"></p>
-      </div>
+    <div class="header">
+      <div><div class="logo">humand</div><h1 id="dTitulo" style="margin-top:8px">Plan de Trabajo</h1><p class="sub" id="dSub"></p></div>
       <div class="actions no-print">
-        <button class="btn-ghost" onclick="volver()">✏️ Editar config</button>
-        <button class="btn-ghost" onclick="window.print()">🖨️ Exportar / PDF</button>
+        <button class="btn-ghost" onclick="volver()">Editar config</button>
+        <button class="btn-primary" onclick="guardar()">💾 Guardar avances</button>
+        <button class="btn-ghost" onclick="exportHTML()">⬇ Exportar index.html</button>
+        <button class="btn-ghost" onclick="imprimir()">🖨 Exportar PDF</button>
       </div>
     </div>
-
-    <div class="kpis">
+    <div class="kpis" style="margin-top:16px">
       <div class="kpi"><div class="n" id="kProg">0%</div><div class="l">Avance general</div><div class="bar"><span id="kProgBar"></span></div></div>
       <div class="kpi"><div class="n" id="kDias">–</div><div class="l">Días para el lanzamiento</div></div>
-      <div class="kpi"><div class="n" id="kMods">0</div><div class="l">Módulos en implementación</div></div>
+      <div class="kpi"><div class="n" id="kMods">0</div><div class="l">Módulos Etapa 1</div></div>
       <div class="kpi"><div class="n" id="kLanz">0</div><div class="l">Módulos lanzados</div></div>
     </div>
-
     <div class="card">
-      <label>Línea de tiempo</label>
-      <div class="timeline"><div class="fill" id="tlFill"></div><span class="lbl" id="tlStart"></span><span class="lbl r" id="tlEnd"></span></div>
-      <p class="note" id="tlNote"></p>
+      <h2 style="margin-top:0">📊 Cronograma de lanzamiento (Etapa 1)</h2>
+      <div class="gantt"><table class="gtable" id="ganttTable"></table></div>
+      <p class="note">Arrastrá los bloques o usá el selector de semana en cada módulo. La fecha límite es el viernes de la semana asignada.</p>
     </div>
-
+    <div class="section-title">🚀 Módulos de lanzamiento <span class="badge" style="background:#4b4fd6">ETAPA 1</span></div>
     <div id="cats"></div>
-
-    <!-- Checklist pasos del cliente -->
+    <div id="postWrap">
+      <div class="section-title">🌱 Post-lanzamiento <span class="badge">ETAPA 2</span></div>
+      <p class="note" style="margin-bottom:10px">Módulos a implementar luego del lanzamiento inicial. No tienen fecha en el cronograma.</p>
+      <div id="catsPost"></div>
+    </div>
     <div class="card">
       <h2 style="margin-top:0">✅ Pasos a seguir por parte del cliente</h2>
       <div id="stepList"></div>
       <div class="actions no-print"><button class="btn-ghost btn-sm" onclick="addStep()">+ Agregar paso</button></div>
       <p class="note" id="stepProg"></p>
     </div>
-
-    <div class="card">
-      <h2 style="margin-top:0">🗒️ Notas internas / agenda próxima reunión</h2>
-      <textarea id="notasInternas" oninput="save()"></textarea>
-    </div>
+    <div class="card"><h2 style="margin-top:0">🗒️ Notas internas / agenda próxima reunión</h2><textarea id="notasInternas" oninput="save()"></textarea></div>
   </div>
-
 </div>
+<div class="savetoast" id="toast">Avances guardados ✓</div>
 
-<script>
-// ---- Catálogo de módulos (de la minuta de Humand) ----
+
+
+  <script>
+const HC="https://help.humand.co/hc/es-419/";
 const CATALOGO = {
-  "Comunicación": ["Muro","Grupos","Organigrama","Cumpleaños y Aniversarios","Reconocimientos","Eventos","Marketplace","Librería de Conocimiento","Chats","Perfiles","Noticias"],
-  "Gestión": ["Vacaciones","Formularios","Gestión de Servicios","Recibos de Nómina","Onboarding","Archivos","Control Horario","Accesos Rápidos"],
-  "Desarrollo": ["Encuestas","People Experience","Cursos","Objetivos","Evaluación de Desempeño"]
+  "Comunicación":[
+    ["Muro",2,HC+"sections/26815315326483-Muro"],
+    ["Noticias",2,HC+"sections/21700115311763-Noticias"],
+    ["Chats",2,HC+"sections/25787942154643-Chats"],
+    ["Accesos Directos",2,HC+"sections/21704134753171-Accesos-r%C3%A1pidos"],
+    ["Librerías de Conocimiento",2,HC+"sections/21704219667091-Librer%C3%ADas-de-Conocimiento"],
+    ["Grupos",2,HC+"sections/26848382174867-Grupos"],
+    ["Organigrama",2,HC],
+    ["Perfiles",2,HC]
+  ],
+  "Gestión de RRHH":[
+    ["Vacaciones",2,HC+"sections/21704266658067-Vacaciones-y-permisos"],
+    ["Documentos Personales",2,HC+"sections/21704056799635-Documentos-Personales"],
+    ["Onboarding",2,HC+"sections/21703883686035-Onboarding"],
+    ["Archivos",3,HC+"sections/21704011299219-Archivos"]
+  ],
+  "Operaciones":[
+    ["Gestión de Servicios",3,HC+"sections/35012282005011-Gesti%C3%B3n-de-Servicios"],
+    ["Control de Asistencia",3,HC+"sections/30059171421587-Control-de-Asistencia"],
+    ["Formularios",4,HC+"sections/21686518989587-Formularios"]
+  ],
+  "Cultura Empresarial":[
+    ["Marketplace",4,HC],
+    ["Reconocimientos",4,HC+"sections/21703992858515-Reconocimientos"],
+    ["Cumpleaños y Aniversarios",4,HC+"sections/25823733037203-Aniversarios-y-Cumplea%C3%B1os"],
+    ["Eventos",4,HC+"sections/38339073387155-Eventos"],
+    ["People Experience",4,HC+"sections/30008085105683-People-Experience"]
+  ],
+  "Desarrollo de Talento":[
+    ["Evaluación de Desempeño",4,HC+"sections/26763849007251-Desempe%C3%B1o"],
+    ["Objetivos",4,HC+"sections/29165322280211-Objetivos"],
+    ["Cursos",4,HC+"sections/28333106769555-Cursos"],
+    ["Encuestas",4,HC+"sections/21700166783507-Encuestas"]
+  ]
 };
-const ESTADOS = ["Pendiente","En curso","Configurado","Lanzado"];
-const PILL = {"Pendiente":"p-pend","En curso":"p-curso","Configurado":"p-conf","Lanzado":"p-lanz"};
-const PESO = {"Pendiente":0,"En curso":0.4,"Configurado":0.75,"Lanzado":1};
-const KEY = "humand_dashboard_v2";
+const SEMANAS=6;
+const ESTADOS=["Pendiente","En curso","Configurado","Lanzado","No se implementa"];
+const PILL={"Pendiente":"p-pend","En curso":"p-curso","Configurado":"p-conf","Lanzado":"p-lanz","No se implementa":"p-baja"};
+const PESO={"Pendiente":0,"En curso":0.4,"Configurado":0.75,"Lanzado":1};
+const BAJA="No se implementa";
+const HITOS=[["Revisión Final",SEMANAS-1],["Lanzamiento",SEMANAS]];
+const KEY=(window.__STORAGE_KEY__)||"humand_plan_v6";
+const ALLMODS=function(){return Object.values(CATALOGO).flat().map(function(x){return x[0];});};
+function modInfo(name){for(var c in CATALOGO){var f=CATALOGO[c].find(function(x){return x[0]===name;});if(f)return f;}return null;}
 
-let state = load() || {cliente:"",fInicio:"",fLanz:"",fReunion:"",asign:{},mods:{},steps:[],notasInternas:""};
-
-// asegurar estructura por módulo: {estado, link, resp, fecha}
-Object.values(CATALOGO).flat().forEach(m=>{
+var saved=load();
+var state = saved || (window.__PRELOAD__?JSON.parse(JSON.stringify(window.__PRELOAD__)):null) || {cliente:"",fInicio:"",fLanz:"",fReunion:"",asign:{},mods:{},steps:[],notasInternas:"",hitos:{}};
+var vieneDePreload = !saved && !!window.__PRELOAD__;
+if(!state.hitos)state.hitos={};
+if(!state.asign)state.asign={};
+if(!state.mods)state.mods={};
+if(!state.steps)state.steps=[];
+ALLMODS().forEach(function(m){
+  var info=modInfo(m);
   if(!state.asign[m]) state.asign[m]="e1";
-  if(!state.mods[m]) state.mods[m]={estado:"Pendiente",link:"",resp:"",fecha:""};
+  if(!state.mods[m]) state.mods[m]={estado:"Pendiente",resp:"",semana:info[1]};
+  if(state.mods[m].semana==null) state.mods[m].semana=info[1];
 });
+HITOS.forEach(function(h){ if(state.hitos[h[0]]==null) state.hitos[h[0]]=h[1]; });
 
-// ---- Render config ----
+function g(id){return document.getElementById(id);}
+function esc(s){return String(s).replace(/'/g,"\\'");}
+function eq(s){return String(s).replace(/"/g,'&quot;');}
+function fmt(d){if(!d)return"–";var p=d.split("-");return p[2]+"/"+p[1]+"/"+p[0];}
+
+function fridayOfWeek(n){
+  if(!state.fInicio)return null;
+  var ini=new Date(state.fInicio+"T00:00:00");
+  var start=new Date(ini); start.setDate(ini.getDate()+(n-1)*7);
+  var day=start.getDay();
+  var diff=(5-day+7)%7;
+  var fri=new Date(start); fri.setDate(start.getDate()+diff);
+  return fri;
+}
+function fmtShort(x){return x?String(x.getDate()).padStart(2,'0')+"/"+String(x.getMonth()+1).padStart(2,'0')+"/"+x.getFullYear():"";}
+function weekRange(n){
+  if(!state.fInicio)return"";
+  var ini=new Date(state.fInicio+"T00:00:00");
+  var s=new Date(ini);s.setDate(ini.getDate()+(n-1)*7);
+  var e=new Date(s);e.setDate(s.getDate()+6);
+  var f=function(x){return String(x.getDate()).padStart(2,'0')+"/"+String(x.getMonth()+1).padStart(2,'0');};
+  return f(s)+"–"+f(e);
+}
+function weekOptions(sel){
+  var o="";
+  for(var w=1;w<=SEMANAS;w++)o+='<option value="'+w+'" '+(w===sel?"selected":"")+">Semana "+w+"</option>";
+  return o;
+}
+function modsEtapa(etapa){return ALLMODS().filter(function(m){return state.asign[m]===etapa && state.mods[m].estado!==BAJA;});}
+function progOf(list){
+  var act=list.filter(function(m){return state.mods[m].estado!==BAJA;});
+  if(!act.length)return 0;
+  return Math.round(act.reduce(function(s,m){return s+(PESO[state.mods[m].estado]||0);},0)/act.length*100);
+}
+
 function renderConfig(){
-  document.getElementById("cliente").value=state.cliente;
-  document.getElementById("fInicio").value=state.fInicio;
-  document.getElementById("fLanz").value=state.fLanz;
-  document.getElementById("fReunion").value=state.fReunion;
-  let html="";
-  for(const cat in CATALOGO){
-    html+=`<h2 style="margin-top:6px">${cat}</h2>`;
-    CATALOGO[cat].forEach(m=>{
-      const a=state.asign[m];
-      html+=`<div class="mod-row"><span class="mod-name">${m}</span>
-        <div class="seg">
-          <button class="${a==='e1'?'on-e1':''}" onclick="setA('${esc(m)}','e1')">🟢 E1</button>
-          <button class="${a==='e2'?'on-e2':''}" onclick="setA('${esc(m)}','e2')">🔵 E2</button>
-          <button class="${a==='off'?'on-off':''}" onclick="setA('${esc(m)}','off')">⚪ No</button>
-        </div></div>`;
+  g("cliente").value=state.cliente;g("fInicio").value=state.fInicio;g("fLanz").value=state.fLanz;g("fReunion").value=state.fReunion;
+  var html="";
+  for(var cat in CATALOGO){
+    html+='<h2 style="margin-top:6px">'+cat+'</h2>';
+    CATALOGO[cat].forEach(function(row){
+      var m=row[0], a=state.asign[m];
+      html+='<div class="mod-row"><span class="mod-name">'+m+'</span><div class="seg">'
+        +'<button class="'+(a==='e1'?'on-e1':'')+'" onclick="setA(\''+esc(m)+'\',\'e1\')">Etapa 1</button>'
+        +'<button class="'+(a==='e2'?'on-e2':'')+'" onclick="setA(\''+esc(m)+'\',\'e2\')">Etapa 2</button>'
+        +'<button class="'+(a==='off'?'on-off':'')+'" onclick="setA(\''+esc(m)+'\',\'off\')">No implementa</button>'
+        +'</div></div>';
     });
   }
-  document.getElementById("modConfig").innerHTML=html;
+  g("modConfig").innerHTML=html;
 }
-function setA(m,v){ state.asign[m]=v; save(); renderConfig(); }
-function marcarTodo(v){ Object.values(CATALOGO).flat().forEach(m=>state.asign[m]=v); save(); renderConfig(); }
+function setA(m,v){state.asign[m]=v;save();renderConfig();}
+function marcarTodo(v){ALLMODS().forEach(function(m){state.asign[m]=v;});save();renderConfig();}
 
-// ---- Generar dashboard ----
 function generar(){
-  state.cliente=document.getElementById("cliente").value;
-  state.fInicio=document.getElementById("fInicio").value;
-  state.fLanz=document.getElementById("fLanz").value;
-  state.fReunion=document.getElementById("fReunion").value;
-  save();
-  document.getElementById("config").classList.add("hidden");
-  document.getElementById("dashboard").classList.remove("hidden");
-  renderDash();
+  state.cliente=g("cliente").value;state.fInicio=g("fInicio").value;state.fLanz=g("fLanz").value;state.fReunion=g("fReunion").value;
+  save();g("config").classList.add("hidden");g("dashboard").classList.remove("hidden");renderDash();
+  window.scrollTo(0,0);
 }
-function volver(){
-  document.getElementById("dashboard").classList.add("hidden");
-  document.getElementById("config").classList.remove("hidden");
-  renderConfig();
+function volver(){g("dashboard").classList.add("hidden");g("config").classList.remove("hidden");renderConfig();window.scrollTo(0,0);}
+
+function ganttBar(cls,tipo,id){
+  return '<div class="gbar '+(cls||'')+'" draggable="true" '
+    +'ondragstart="dragStart(event,\''+tipo+'\',\''+esc(id)+'\')" '
+    +'ondragend="dragEnd(event)" title="Arrastrá para cambiar de semana">⠿</div>';
 }
-function fmt(d){ if(!d) return "–"; const p=d.split("-"); return p[2]+"/"+p[1]+"/"+p[0]; }
-function esc(s){ return s.replace(/'/g,"\\'"); }
+function ganttCell(week,inner){
+  return '<td class="gcell" data-week="'+week+'" '
+    +'ondragover="dragOver(event)" ondragleave="dragLeave(event)" '
+    +'ondrop="dropBar(event,'+week+')">'+(inner||"")+"</td>";
+}
+var DRAG=null;
+function dragStart(ev,tipo,id){DRAG={tipo:tipo,id:id};try{ev.dataTransfer.setData("text/plain",id);ev.dataTransfer.effectAllowed="move";}catch(e){}}
+function dragEnd(ev){DRAG=null;var cs=document.querySelectorAll(".gcell.drop-hover");for(var i=0;i<cs.length;i++)cs[i].classList.remove("drop-hover");}
+function dragOver(ev){ev.preventDefault();ev.dataTransfer.dropEffect="move";ev.currentTarget.classList.add("drop-hover");}
+function dragLeave(ev){ev.currentTarget.classList.remove("drop-hover");}
+function dropBar(ev,week){
+  ev.preventDefault();ev.currentTarget.classList.remove("drop-hover");
+  if(!DRAG)return;
+  if(DRAG.tipo==="mod"){state.mods[DRAG.id].semana=week;}
+  else if(DRAG.tipo==="hito"){state.hitos[DRAG.id]=week;}
+  DRAG=null;save();renderDash();
+}
 
 function renderDash(){
-  document.getElementById("dTitulo").textContent = "🚀 Implementación · "+(state.cliente||"Proyecto");
-  document.getElementById("dSub").textContent = "Inicio: "+fmt(state.fInicio)+"  ·  Lanzamiento: "+fmt(state.fLanz)+(state.fReunion?"  ·  Próx. reunión: "+fmt(state.fReunion):"");
+  g("dTitulo").textContent="Plan de Trabajo · "+(state.cliente||"Cliente");
+  g("dSub").textContent="Inicio: "+fmt(state.fInicio)+"  ·  Lanzamiento: "+fmt(state.fLanz)+(state.fReunion?"  ·  Próx. reunión: "+fmt(state.fReunion):"");
 
-  const activos = Object.values(CATALOGO).flat().filter(m=>state.asign[m]!=="off");
-  const lanzados = activos.filter(m=>state.mods[m].estado==="Lanzado").length;
-  const prog = activos.length? Math.round(activos.reduce((s,m)=>s+PESO[state.mods[m].estado],0)/activos.length*100):0;
+  var e1=modsEtapa("e1");
+  var lanzados=e1.filter(function(m){return state.mods[m].estado==="Lanzado";}).length;
+  var prog=progOf(e1);
+  g("kProg").textContent=prog+"%";g("kProgBar").style.width=prog+"%";
+  g("kMods").textContent=e1.length;g("kLanz").textContent=lanzados;
 
-  document.getElementById("kProg").textContent=prog+"%";
-  document.getElementById("kProgBar").style.width=prog+"%";
-  document.getElementById("kMods").textContent=activos.length;
-  document.getElementById("kLanz").textContent=lanzados;
+  var hoy=new Date();hoy.setHours(0,0,0,0);
+  var fin=state.fLanz?new Date(state.fLanz+"T00:00:00"):null;
+  var dias="–";if(fin){var d=Math.ceil((fin-hoy)/86400000);dias=d>=0?d:"Vencido";}
+  g("kDias").textContent=dias;
 
-  const hoy=new Date(); hoy.setHours(0,0,0,0);
-  const ini=state.fInicio?new Date(state.fInicio):null;
-  const fin=state.fLanz?new Date(state.fLanz):null;
-  let dias="–";
-  if(fin){ let d=Math.ceil((fin-hoy)/86400000); dias=d>=0?d:"Vencido"; }
-  document.getElementById("kDias").textContent=dias;
-  let pct=0;
-  if(ini&&fin&&fin>ini){ pct=Math.min(100,Math.max(0,Math.round((hoy-ini)/(fin-ini)*100))); }
-  document.getElementById("tlFill").style.width=pct+"%";
-  document.getElementById("tlStart").textContent="Inicio "+fmt(state.fInicio);
-  document.getElementById("tlEnd").textContent="Lanzam. "+fmt(state.fLanz);
-  document.getElementById("tlNote").textContent=pct+"% del tiempo transcurrido";
-
-  let html="";
-  for(const cat in CATALOGO){
-    const mods=CATALOGO[cat].filter(m=>state.asign[m]!=="off");
-    if(!mods.length) continue;
-    const cprog=Math.round(mods.reduce((s,m)=>s+PESO[state.mods[m].estado],0)/mods.length*100);
-    html+=`<div class="card catbox"><div class="cattitle">${cat} <small>${cprog}% · ${mods.length} módulos</small></div>
-      <div class="bar" style="margin-bottom:12px"><span style="width:${cprog}%"></span></div>`;
-    mods.forEach(m=>{
-      const e=state.asign[m], d=state.mods[m];
-      const tag = e==="e1"?'<span class="etapa e1tag">ETAPA 1</span>':'<span class="etapa e2tag">ETAPA 2</span>';
-      const opts=ESTADOS.map(o=>`<option ${o===d.estado?"selected":""}>${o}</option>`).join("");
-      const openLink = d.link?`<a class="link-open" href="${d.link}" target="_blank" rel="noopener">🔗 abrir</a>`:"";
-      html+=`<div class="task">
-        <div class="task-top">
-          <span class="tname">${m}</span>${tag}
-          <span class="pill ${PILL[d.estado]}">${d.estado}</span>
-          <select class="status-sel" onchange="setF('${esc(m)}','estado',this.value)">${opts}</select>
-        </div>
-        <div class="task-meta">
-          <div><span class="mlbl">Recurso / link ${openLink}</span><input type="url" placeholder="https://..." value="${d.link||""}" oninput="setF('${esc(m)}','link',this.value)"></div>
-          <div><span class="mlbl">Responsable</span><input type="text" placeholder="Nombre" value="${d.resp||""}" oninput="setF('${esc(m)}','resp',this.value)"></div>
-          <div><span class="mlbl">Fecha objetivo</span><input type="date" value="${d.fecha||""}" oninput="setF('${esc(m)}','fecha',this.value)"></div>
-        </div>
-      </div>`;
+  var gh="<tr><th class='tl'>Módulo / Hito</th>";
+  for(var w=1;w<=SEMANAS;w++)gh+="<th>Semana "+w+'<span class="weekdate">'+weekRange(w)+"</span></th>";
+  gh+="</tr>";
+  for(var cat in CATALOGO){
+    var mods=CATALOGO[cat].filter(function(row){return state.asign[row[0]]==="e1" && state.mods[row[0]].estado!==BAJA;});
+    if(!mods.length)continue;
+    gh+='<tr><td class="lbl" colspan="'+(SEMANAS+1)+'" style="background:#f0f1fa">'+cat+"</td></tr>";
+    mods.forEach(function(row){
+      var m=row[0], wk=state.mods[m].semana;
+      gh+='<tr><td class="lbl">'+m+"</td>";
+      for(var w2=1;w2<=SEMANAS;w2++)gh+=ganttCell(w2, w2===wk?ganttBar("e1","mod",m):"");
+      gh+="</tr>";
     });
-    html+=`</div>`;
   }
-  document.getElementById("cats").innerHTML=html;
-  renderSteps();
-  document.getElementById("notasInternas").value=state.notasInternas||"";
-}
-function setF(m,field,v){
-  state.mods[m][field]=v; save();
-  if(field==="estado") renderDash(); // recalcula progreso
-}
-
-// ---- Checklist de pasos del cliente ----
-function renderSteps(){
-  let html="";
-  state.steps.forEach((s,i)=>{
-    html+=`<div class="step ${s.done?'done':''}">
-      <input type="checkbox" ${s.done?"checked":""} onchange="toggleStep(${i})">
-      <input type="text" value="${(s.txt||'').replace(/"/g,'&quot;')}" placeholder="Describir paso..." oninput="editStep(${i},this.value)">
-      <button class="del no-print" onclick="delStep(${i})" title="Eliminar">✕</button>
-    </div>`;
+  gh+='<tr><td class="lbl" colspan="'+(SEMANAS+1)+'" style="background:#f0f1fa">Cierre</td></tr>';
+  HITOS.forEach(function(h){
+    var nombre=h[0], wk=state.hitos[nombre];
+    gh+='<tr><td class="lbl">'+nombre+' <select class="mini-sel no-print" onchange="setHito(\''+esc(nombre)+'\',this.value)">'+weekOptions(wk)+'</select></td>';
+    for(var w3=1;w3<=SEMANAS;w3++)gh+=ganttCell(w3, w3===wk?ganttBar("hito","hito",nombre):"");
+    gh+="</tr>";
   });
-  document.getElementById("stepList").innerHTML=html;
-  const done=state.steps.filter(s=>s.done).length;
-  document.getElementById("stepProg").textContent = state.steps.length? `${done}/${state.steps.length} pasos completados` : "Sin pasos cargados aún.";
-}
-function addStep(){ state.steps.push({txt:"",done:false}); save(); renderSteps(); }
-function editStep(i,v){ state.steps[i].txt=v; save(); }
-function toggleStep(i){ state.steps[i].done=!state.steps[i].done; save(); renderSteps(); }
-function delStep(i){ state.steps.splice(i,1); save(); renderSteps(); }
+  g("ganttTable").innerHTML=gh;
 
-// ---- Persistencia ----
-function save(){
-  const ni=document.getElementById("notasInternas");
-  if(ni) state.notasInternas=ni.value;
-  localStorage.setItem(KEY,JSON.stringify(state));
-}
-function load(){ try{return JSON.parse(localStorage.getItem(KEY));}catch(e){return null;} }
+  g("cats").innerHTML=renderTasks("e1",true);
+  var e2any=ALLMODS().filter(function(m){return state.asign[m]==="e2";});
+  if(e2any.length){g("postWrap").classList.remove("hidden");g("catsPost").innerHTML=renderTasks("e2",false);}
+  else g("postWrap").classList.add("hidden");
 
-renderConfig();
+  renderSteps();
+  g("notasInternas").value=state.notasInternas||"";
+  aplicarModoCliente();
+}
+
+function renderTasks(etapa,conFecha){
+  var html="";
+  for(var cat in CATALOGO){
+    var mods=CATALOGO[cat].filter(function(row){return state.asign[row[0]]===etapa;});
+    if(!mods.length)continue;
+    var nombresAll=mods.map(function(r){return r[0];});
+    var cprog=progOf(nombresAll);
+    var activos=nombresAll.filter(function(m){return state.mods[m].estado!==BAJA;}).length;
+    html+='<div class="card"><div class="cattitle">'+cat+" <small>"+cprog+"% · "+activos+" de "+mods.length+' módulos activos</small></div><div class="bar" style="margin-bottom:12px"><span style="width:'+cprog+'%"></span></div>';
+    mods.forEach(function(row){
+      var m=row[0], url=row[2], dd=state.mods[m];
+      var esBaja=dd.estado===BAJA;
+      var tag=etapa==="e1"?'<span class="etapa e1">ETAPA 1</span>':'<span class="etapa e2">ETAPA 2</span>';
+      var fechaCtrl="";
+      if(conFecha && !esBaja){
+        var fri=fridayOfWeek(dd.semana);
+        fechaCtrl='<select class="mini-sel no-print" onchange="setF(\''+esc(m)+'\',\'semana\',parseInt(this.value))">'+weekOptions(dd.semana)+'</select>'
+          +'<span class="duetag">📅 Límite: '+fmtShort(fri)+'</span>';
+      }
+      var opts=ESTADOS.map(function(o){return '<option '+(o===dd.estado?"selected":"")+">"+o+"</option>";}).join("");
+      html+='<div class="task" style="'+(esBaja?"opacity:.55":"")+'"><div class="task-top">'
+        +'<span class="tname"><a href="'+url+'" target="_blank" rel="noopener" title="Abrir Help Center">'+m+'</a></span>'
+        +tag+fechaCtrl
+        +'<span class="pill '+PILL[dd.estado]+'">'+dd.estado+'</span>'
+        +'<select class="status-sel" onchange="setF(\''+esc(m)+'\',\'estado\',this.value)">'+opts+'</select>'
+        +'</div>'
+        +'<div class="task-meta"><span class="mlbl">Responsable</span>'
+        +'<input type="text" placeholder="Completar responsable" value="'+eq(dd.resp||"")+'" oninput="setF(\''+esc(m)+'\',\'resp\',this.value)"></div>'
+        +'<div style="margin-top:10px"><a class="hc-link" href="'+url+'" target="_blank" rel="noopener">📖 Ver tutorial en el Help Center →</a></div>'
+        +'</div>';
+    });
+    html+="</div>";
+  }
+  return html;
+}
+function setF(m,f,v){state.mods[m][f]=v;save();renderDash();}
+function setHito(nombre,v){state.hitos[nombre]=parseInt(v);save();renderDash();}
+
+function renderSteps(){
+  var html="";
+  state.steps.forEach(function(s,i){
+    html+='<div class="step '+(s.done?'done':'')+'">'
+      +'<input type="checkbox" '+(s.done?"checked":"")+' onchange="toggleStep('+i+')">'
+      +'<input type="text" value="'+eq(s.txt||"")+'" placeholder="Describir paso..." oninput="editStep('+i+',this.value)">'
+      +'<button class="del no-print" onclick="delStep('+i+')">✕</button></div>';
+  });
+  g("stepList").innerHTML=html;
+  var done=state.steps.filter(function(s){return s.done;}).length;
+  g("stepProg").textContent=state.steps.length?done+"/"+state.steps.length+" pasos completados":"Sin pasos cargados aún.";
+}
+function addStep(){state.steps.push({txt:"",done:false});save();renderSteps();}
+function editStep(i,v){state.steps[i].txt=v;save();}
+function toggleStep(i){state.steps[i].done=!state.steps[i].done;save();renderSteps();}
+function delStep(i){state.steps.splice(i,1);save();renderSteps();}
+
+function save(){var ni=g("notasInternas");if(ni)state.notasInternas=ni.value;try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
+function load(){try{return JSON.parse(localStorage.getItem(KEY));}catch(e){return null;}}
+
+function guardar(){save();var t=g("toast");t.classList.add("show");setTimeout(function(){t.classList.remove("show");},1600);}
+
+function imprimir(){
+  save();
+  var notas=(state.notasInternas||"").trim();
+  var hayPasos=state.steps.some(function(s){return (s.txt||"").trim()!=="";});
+  var cardNotas=g("notasInternas").closest(".card");
+  var cardPasos=g("stepList").closest(".card");
+  if(cardNotas) cardNotas.classList.toggle("print-empty", notas==="");
+  if(cardPasos) cardPasos.classList.toggle("print-empty", !hayPasos);
+  window.print();
+  setTimeout(function(){
+    if(cardNotas)cardNotas.classList.remove("print-empty");
+    if(cardPasos)cardPasos.classList.remove("print-empty");
+  },500);
+}
+
+function exportHTML(){
+  save();
+  var uniqueKey="humand_plan_"+((state.cliente||"cliente").toLowerCase().replace(/[^a-z0-9]+/g,"_"))+"_"+Date.now();
+  var doc="<!DOCTYPE html>\n"+document.documentElement.outerHTML;
+  var inject="<scr"+"ipt>window.__PRELOAD__="+JSON.stringify(state)+";window.__STORAGE_KEY__="+JSON.stringify(uniqueKey)+";</scr"+"ipt>";
+  var out=doc.replace("</head>",inject+"</head>");
+  var blob=new Blob([out],{type:"text/html"});
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download="index.html";a.click();
+}
+
+// modo cliente = archivo exportado (trae PRELOAD): sin editar config ni exportar
+var MODO_CLIENTE = !!window.__PRELOAD__;
+function aplicarModoCliente(){
+  if(!MODO_CLIENTE) return;
+  var btnEditar=document.querySelector('button[onclick="volver()"]');
+  var btnExport=document.querySelector('button[onclick="exportHTML()"]');
+  if(btnEditar) btnEditar.style.display="none";
+  if(btnExport) btnExport.style.display="none";
+}
+
+// arranque
+if(vieneDePreload){g("config").classList.add("hidden");g("dashboard").classList.remove("hidden");renderDash();}
+else if(saved && saved.fInicio){g("config").classList.add("hidden");g("dashboard").classList.remove("hidden");renderDash();}
+else renderConfig();
+aplicarModoCliente();
 </script>
 </body>
 </html>
