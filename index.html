@@ -144,7 +144,12 @@
   </div>
 </div>
 <div class="savetoast" id="toast">Avances guardados ✓</div>
-<script>
+
+
+
+
+
+  <script>
 const HC="https://help.humand.co/hc/es-419/";
 const CATALOGO = {
   "Comunicación":[
@@ -186,18 +191,22 @@ const SEMANAS=6;
 const ESTADOS=["Pendiente","En curso","Configurado","Lanzado"];
 const PILL={"Pendiente":"p-pend","En curso":"p-curso","Configurado":"p-conf","Lanzado":"p-lanz"};
 const PESO={"Pendiente":0,"En curso":0.4,"Configurado":0.75,"Lanzado":1};
-const KEY="humand_plan_v4";
+const KEY="humand_plan_v5";
+// filas fijas del gantt (hitos): por defecto en las últimas dos semanas
+const HITOS=[["Revisión Final",SEMANAS-1],["Lanzamiento",SEMANAS]];
 const ALLMODS=function(){return Object.values(CATALOGO).flat().map(function(x){return x[0];});};
 function modInfo(name){for(var c in CATALOGO){var f=CATALOGO[c].find(function(x){return x[0]===name;});if(f)return f;}return null;}
 
 var state=(window.__PRELOAD__&&JSON.parse(JSON.stringify(window.__PRELOAD__)))||load()||null;
-if(!state){state={cliente:"",fInicio:"",fLanz:"",fReunion:"",asign:{},mods:{},steps:[],notasInternas:""};}
+if(!state){state={cliente:"",fInicio:"",fLanz:"",fReunion:"",asign:{},mods:{},steps:[],notasInternas:"",hitos:{}};}
+if(!state.hitos)state.hitos={};
 ALLMODS().forEach(function(m){
   var info=modInfo(m);
   if(!state.asign[m]) state.asign[m]="e1";
   if(!state.mods[m]) state.mods[m]={estado:"Pendiente",resp:"",semana:info[1]};
   if(state.mods[m].semana==null) state.mods[m].semana=info[1];
 });
+HITOS.forEach(function(h){ if(state.hitos[h[0]]==null) state.hitos[h[0]]=h[1]; });
 
 function g(id){return document.getElementById(id);}
 function esc(s){return String(s).replace(/'/g,"\\'");}
@@ -221,6 +230,11 @@ function weekRange(n){
   var e=new Date(s);e.setDate(s.getDate()+6);
   var f=function(x){return String(x.getDate()).padStart(2,'0')+"/"+String(x.getMonth()+1).padStart(2,'0');};
   return f(s)+"–"+f(e);
+}
+function weekOptions(sel){
+  var o="";
+  for(var w=1;w<=SEMANAS;w++)o+='<option value="'+w+'" '+(w===sel?"selected":"")+">Semana "+w+"</option>";
+  return o;
 }
 
 function renderConfig(){
@@ -249,6 +263,8 @@ function generar(){
 }
 function volver(){g("dashboard").classList.add("hidden");g("config").classList.remove("hidden");renderConfig();window.scrollTo(0,0);}
 
+function ganttBar(cls){return '<div class="gbar '+(cls||'')+'"></div>';}
+
 function renderDash(){
   g("dTitulo").textContent="Plan de Trabajo · "+(state.cliente||"Cliente");
   g("dSub").textContent="Inicio: "+fmt(state.fInicio)+"  ·  Lanzamiento: "+fmt(state.fLanz)+(state.fReunion?"  ·  Próx. reunión: "+fmt(state.fReunion):"");
@@ -264,9 +280,10 @@ function renderDash(){
   var dias="–";if(fin){var d=Math.ceil((fin-hoy)/86400000);dias=d>=0?d:"Vencido";}
   g("kDias").textContent=dias;
 
-  var gh="<tr><th class='tl'>Módulo</th>";
+  var gh="<tr><th class='tl'>Módulo / Hito</th>";
   for(var w=1;w<=SEMANAS;w++)gh+="<th>Semana "+w+'<span class="weekdate">'+weekRange(w)+"</span></th>";
   gh+="</tr>";
+  // módulos Etapa 1
   for(var cat in CATALOGO){
     var mods=CATALOGO[cat].filter(function(row){return state.asign[row[0]]==="e1";});
     if(!mods.length)continue;
@@ -274,10 +291,18 @@ function renderDash(){
     mods.forEach(function(row){
       var m=row[0], wk=state.mods[m].semana;
       gh+='<tr><td class="lbl">'+m+"</td>";
-      for(var w2=1;w2<=SEMANAS;w2++)gh+='<td class="gcell">'+(w2===wk?'<div class="gbar"></div>':"")+"</td>";
+      for(var w2=1;w2<=SEMANAS;w2++)gh+='<td class="gcell">'+(w2===wk?ganttBar("e1"):"")+"</td>";
       gh+="</tr>";
     });
   }
+  // filas fijas: Revisión Final y Lanzamiento (con selector propio)
+  gh+='<tr><td class="lbl" colspan="'+(SEMANAS+1)+'" style="background:#f0f1fa">Cierre</td></tr>';
+  HITOS.forEach(function(h){
+    var nombre=h[0], wk=state.hitos[nombre];
+    gh+='<tr><td class="lbl">'+nombre+' <select class="mini-sel no-print" onchange="setHito(\''+esc(nombre)+'\',this.value)">'+weekOptions(wk)+'</select></td>';
+    for(var w3=1;w3<=SEMANAS;w3++)gh+='<td class="gcell">'+(w3===wk?ganttBar("hito"):"")+"</td>";
+    gh+="</tr>";
+  });
   g("ganttTable").innerHTML=gh;
 
   g("cats").innerHTML=renderTasks("e1",true);
@@ -299,15 +324,16 @@ function renderTasks(etapa,conFecha){
     mods.forEach(function(row){
       var m=row[0], url=row[2], dd=state.mods[m];
       var tag=etapa==="e1"?'<span class="etapa e1">ETAPA 1</span>':'<span class="etapa e2">ETAPA 2</span>';
-      var fechaTags="";
+      var fechaCtrl="";
       if(conFecha){
         var fri=fridayOfWeek(dd.semana);
-        fechaTags='<span class="weektag">Semana '+dd.semana+'</span><span class="duetag">📅 Límite: '+fmtShort(fri)+'</span>';
+        fechaCtrl='<select class="mini-sel no-print" onchange="setF(\''+esc(m)+'\',\'semana\',parseInt(this.value))">'+weekOptions(dd.semana)+'</select>'
+          +'<span class="duetag">📅 Límite: '+fmtShort(fri)+'</span>';
       }
       var opts=ESTADOS.map(function(o){return '<option '+(o===dd.estado?"selected":"")+">"+o+"</option>";}).join("");
       html+='<div class="task"><div class="task-top">'
         +'<span class="tname"><a href="'+url+'" target="_blank" rel="noopener" title="Abrir Help Center">'+m+'</a></span>'
-        +tag+fechaTags
+        +tag+fechaCtrl
         +'<span class="pill '+PILL[dd.estado]+'">'+dd.estado+'</span>'
         +'<select class="status-sel" onchange="setF(\''+esc(m)+'\',\'estado\',this.value)">'+opts+'</select>'
         +'<a class="hc-link" href="'+url+'" target="_blank" rel="noopener">📖 Help Center</a>'
@@ -318,7 +344,8 @@ function renderTasks(etapa,conFecha){
   }
   return html;
 }
-function setF(m,f,v){state.mods[m][f]=v;save();if(f==="estado")renderDash();}
+function setF(m,f,v){state.mods[m][f]=v;save();renderDash();}
+function setHito(nombre,v){state.hitos[nombre]=parseInt(v);save();renderDash();}
 
 function renderSteps(){
   var html="";
@@ -340,11 +367,7 @@ function delStep(i){state.steps.splice(i,1);save();renderSteps();}
 function save(){var ni=g("notasInternas");if(ni)state.notasInternas=ni.value;try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
 function load(){try{return JSON.parse(localStorage.getItem(KEY));}catch(e){return null;}}
 
-function guardar(){
-  save();
-  var t=g("toast");t.classList.add("show");
-  setTimeout(function(){t.classList.remove("show");},1600);
-}
+function guardar(){save();var t=g("toast");t.classList.add("show");setTimeout(function(){t.classList.remove("show");},1600);}
 
 function exportHTML(){
   save();
@@ -359,5 +382,3 @@ function exportHTML(){
 if(window.__PRELOAD__){g("config").classList.add("hidden");g("dashboard").classList.remove("hidden");renderDash();}
 else renderConfig();
 </script>
-</body>
-</html>
