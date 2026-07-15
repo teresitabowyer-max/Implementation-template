@@ -160,7 +160,7 @@
 <div class="savetoast" id="toast">Avances guardados ✓</div>
 
 
-  <script>
+ <script>
 const HC="https://help.humand.co/hc/es-419/";
 const CATALOGO = {
   "Comunicación":[
@@ -199,17 +199,28 @@ const CATALOGO = {
   ]
 };
 const SEMANAS=6;
-const ESTADOS=["Pendiente","En curso","Configurado","Lanzado"];
-const PILL={"Pendiente":"p-pend","En curso":"p-curso","Configurado":"p-conf","Lanzado":"p-lanz"};
+// estados: agregamos "No se implementa" (baja) que excluye del cálculo de avance
+const ESTADOS=["Pendiente","En curso","Configurado","Lanzado","No se implementa"];
+const PILL={"Pendiente":"p-pend","En curso":"p-curso","Configurado":"p-conf","Lanzado":"p-lanz","No se implementa":"p-baja"};
 const PESO={"Pendiente":0,"En curso":0.4,"Configurado":0.75,"Lanzado":1};
-const KEY="humand_plan_v6";
+const BAJA="No se implementa";
 const HITOS=[["Revisión Final",SEMANAS-1],["Lanzamiento",SEMANAS]];
+
+// KEY: si el archivo fue exportado trae su propia clave única; si no, la del generador
+const KEY=(window.__STORAGE_KEY__)||"humand_plan_v6";
+
 const ALLMODS=function(){return Object.values(CATALOGO).flat().map(function(x){return x[0];});};
 function modInfo(name){for(var c in CATALOGO){var f=CATALOGO[c].find(function(x){return x[0]===name;});if(f)return f;}return null;}
 
-var state=(window.__PRELOAD__&&JSON.parse(JSON.stringify(window.__PRELOAD__)))||load()||null;
-if(!state){state={cliente:"",fInicio:"",fLanz:"",fReunion:"",asign:{},mods:{},steps:[],notasInternas:"",hitos:{}};}
+// ===== ARRANQUE CORREGIDO =====
+// 1) localStorage manda (avance guardado). 2) si no hay, usa el PRELOAD incrustado. 3) si no, vacío.
+var saved=load();
+var state = saved || (window.__PRELOAD__?JSON.parse(JSON.stringify(window.__PRELOAD__)):null) || {cliente:"",fInicio:"",fLanz:"",fReunion:"",asign:{},mods:{},steps:[],notasInternas:"",hitos:{}};
+var vieneDePreload = !saved && !!window.__PRELOAD__;
 if(!state.hitos)state.hitos={};
+if(!state.asign)state.asign={};
+if(!state.mods)state.mods={};
+if(!state.steps)state.steps=[];
 ALLMODS().forEach(function(m){
   var info=modInfo(m);
   if(!state.asign[m]) state.asign[m]="e1";
@@ -245,6 +256,13 @@ function weekOptions(sel){
   var o="";
   for(var w=1;w<=SEMANAS;w++)o+='<option value="'+w+'" '+(w===sel?"selected":"")+">Semana "+w+"</option>";
   return o;
+}
+// módulos activos de una etapa = asignados a esa etapa Y no dados de baja
+function modsEtapa(etapa){return ALLMODS().filter(function(m){return state.asign[m]===etapa && state.mods[m].estado!==BAJA;});}
+function progOf(list){
+  var act=list.filter(function(m){return state.mods[m].estado!==BAJA;});
+  if(!act.length)return 0;
+  return Math.round(act.reduce(function(s,m){return s+(PESO[state.mods[m].estado]||0);},0)/act.length*100);
 }
 
 function renderConfig(){
@@ -283,29 +301,26 @@ function ganttCell(week,inner){
     +'ondragover="dragOver(event)" ondragleave="dragLeave(event)" '
     +'ondrop="dropBar(event,'+week+')">'+(inner||"")+"</td>";
 }
-
 var DRAG=null;
 function dragStart(ev,tipo,id){DRAG={tipo:tipo,id:id};try{ev.dataTransfer.setData("text/plain",id);ev.dataTransfer.effectAllowed="move";}catch(e){}}
 function dragEnd(ev){DRAG=null;var cs=document.querySelectorAll(".gcell.drop-hover");for(var i=0;i<cs.length;i++)cs[i].classList.remove("drop-hover");}
 function dragOver(ev){ev.preventDefault();ev.dataTransfer.dropEffect="move";ev.currentTarget.classList.add("drop-hover");}
 function dragLeave(ev){ev.currentTarget.classList.remove("drop-hover");}
 function dropBar(ev,week){
-  ev.preventDefault();
-  ev.currentTarget.classList.remove("drop-hover");
+  ev.preventDefault();ev.currentTarget.classList.remove("drop-hover");
   if(!DRAG)return;
   if(DRAG.tipo==="mod"){state.mods[DRAG.id].semana=week;}
   else if(DRAG.tipo==="hito"){state.hitos[DRAG.id]=week;}
-  DRAG=null;
-  save();renderDash();
+  DRAG=null;save();renderDash();
 }
 
 function renderDash(){
   g("dTitulo").textContent="Plan de Trabajo · "+(state.cliente||"Cliente");
   g("dSub").textContent="Inicio: "+fmt(state.fInicio)+"  ·  Lanzamiento: "+fmt(state.fLanz)+(state.fReunion?"  ·  Próx. reunión: "+fmt(state.fReunion):"");
 
-  var e1=ALLMODS().filter(function(m){return state.asign[m]==="e1";});
+  var e1=modsEtapa("e1");
   var lanzados=e1.filter(function(m){return state.mods[m].estado==="Lanzado";}).length;
-  var prog=e1.length?Math.round(e1.reduce(function(s,m){return s+PESO[state.mods[m].estado];},0)/e1.length*100):0;
+  var prog=progOf(e1);
   g("kProg").textContent=prog+"%";g("kProgBar").style.width=prog+"%";
   g("kMods").textContent=e1.length;g("kLanz").textContent=lanzados;
 
@@ -318,7 +333,7 @@ function renderDash(){
   for(var w=1;w<=SEMANAS;w++)gh+="<th>Semana "+w+'<span class="weekdate">'+weekRange(w)+"</span></th>";
   gh+="</tr>";
   for(var cat in CATALOGO){
-    var mods=CATALOGO[cat].filter(function(row){return state.asign[row[0]]==="e1";});
+    var mods=CATALOGO[cat].filter(function(row){return state.asign[row[0]]==="e1" && state.mods[row[0]].estado!==BAJA;});
     if(!mods.length)continue;
     gh+='<tr><td class="lbl" colspan="'+(SEMANAS+1)+'" style="background:#f0f1fa">'+cat+"</td></tr>";
     mods.forEach(function(row){
@@ -338,8 +353,8 @@ function renderDash(){
   g("ganttTable").innerHTML=gh;
 
   g("cats").innerHTML=renderTasks("e1",true);
-  var e2=ALLMODS().filter(function(m){return state.asign[m]==="e2";});
-  if(e2.length){g("postWrap").classList.remove("hidden");g("catsPost").innerHTML=renderTasks("e2",false);}
+  var e2any=ALLMODS().filter(function(m){return state.asign[m]==="e2";});
+  if(e2any.length){g("postWrap").classList.remove("hidden");g("catsPost").innerHTML=renderTasks("e2",false);}
   else g("postWrap").classList.add("hidden");
 
   renderSteps();
@@ -351,19 +366,22 @@ function renderTasks(etapa,conFecha){
   for(var cat in CATALOGO){
     var mods=CATALOGO[cat].filter(function(row){return state.asign[row[0]]===etapa;});
     if(!mods.length)continue;
-    var cprog=Math.round(mods.reduce(function(s,row){return s+PESO[state.mods[row[0]].estado];},0)/mods.length*100);
-    html+='<div class="card"><div class="cattitle">'+cat+" <small>"+cprog+"% · "+mods.length+' módulos</small></div><div class="bar" style="margin-bottom:12px"><span style="width:'+cprog+'%"></span></div>';
+    var nombresAll=mods.map(function(r){return r[0];});
+    var cprog=progOf(nombresAll);
+    var activos=nombresAll.filter(function(m){return state.mods[m].estado!==BAJA;}).length;
+    html+='<div class="card"><div class="cattitle">'+cat+" <small>"+cprog+"% · "+activos+" de "+mods.length+' módulos activos</small></div><div class="bar" style="margin-bottom:12px"><span style="width:'+cprog+'%"></span></div>';
     mods.forEach(function(row){
       var m=row[0], url=row[2], dd=state.mods[m];
+      var esBaja=dd.estado===BAJA;
       var tag=etapa==="e1"?'<span class="etapa e1">ETAPA 1</span>':'<span class="etapa e2">ETAPA 2</span>';
       var fechaCtrl="";
-      if(conFecha){
+      if(conFecha && !esBaja){
         var fri=fridayOfWeek(dd.semana);
         fechaCtrl='<select class="mini-sel no-print" onchange="setF(\''+esc(m)+'\',\'semana\',parseInt(this.value))">'+weekOptions(dd.semana)+'</select>'
           +'<span class="duetag">📅 Límite: '+fmtShort(fri)+'</span>';
       }
       var opts=ESTADOS.map(function(o){return '<option '+(o===dd.estado?"selected":"")+">"+o+"</option>";}).join("");
-      html+='<div class="task"><div class="task-top">'
+      html+='<div class="task" style="'+(esBaja?"opacity:.55":"")+'"><div class="task-top">'
         +'<span class="tname"><a href="'+url+'" target="_blank" rel="noopener" title="Abrir Help Center">'+m+'</a></span>'
         +tag+fechaCtrl
         +'<span class="pill '+PILL[dd.estado]+'">'+dd.estado+'</span>'
@@ -418,16 +436,18 @@ function imprimir(){
 
 function exportHTML(){
   save();
+  // clave única para el archivo del cliente (para que su avance no se mezcle con el generador)
+  var uniqueKey="humand_plan_"+((state.cliente||"cliente").toLowerCase().replace(/[^a-z0-9]+/g,"_"))+"_"+Date.now();
   var doc="<!DOCTYPE html>\n"+document.documentElement.outerHTML;
-  var inject="<scr"+"ipt>window.__PRELOAD__="+JSON.stringify(state)+";</scr"+"ipt>";
+  var inject="<scr"+"ipt>window.__PRELOAD__="+JSON.stringify(state)+";window.__STORAGE_KEY__="+JSON.stringify(uniqueKey)+";</scr"+"ipt>";
   var out=doc.replace("</head>",inject+"</head>");
   var blob=new Blob([out],{type:"text/html"});
   var a=document.createElement("a");
   a.href=URL.createObjectURL(blob);a.download="index.html";a.click();
 }
 
-if(window.__PRELOAD__){g("config").classList.add("hidden");g("dashboard").classList.remove("hidden");renderDash();}
+// arranque
+if(vieneDePreload){g("config").classList.add("hidden");g("dashboard").classList.remove("hidden");renderDash();}
+else if(saved && saved.fInicio){g("config").classList.add("hidden");g("dashboard").classList.remove("hidden");renderDash();}
 else renderConfig();
 </script>
-</body>
-</html>
