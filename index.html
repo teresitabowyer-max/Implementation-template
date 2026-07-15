@@ -82,8 +82,12 @@
   .step .del:hover{color:#e74c3c}
   .savetoast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 20px;border-radius:30px;font-size:13px;font-weight:600;opacity:0;transition:.3s;pointer-events:none;z-index:99}
   .savetoast.show{opacity:1}
-  .mini-sel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px 7px;color:var(--indigo);font-size:11px;font-weight:600;cursor:pointer}
+.gcell{width:70px;transition:background .12s}
+  .gcell.drop-hover{background:#e0e2fb;box-shadow:inset 0 0 0 2px var(--indigo)}
+  .gbar{height:18px;border-radius:5px;margin:0 3px;background:var(--e1);cursor:grab;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.65);font-size:10px;user-select:none}
+  .gbar:active{cursor:grabbing;opacity:.6}
   .gbar.hito{background:#1b1b4b}
+  .mini-sel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px 7px;color:var(--indigo);font-size:11px;font-weight:600;cursor:pointer}
   @media print{body{background:#fff}.no-print{display:none!important}.card,.kpi{border-color:#ccc;box-shadow:none;break-inside:avoid}.task{break-inside:avoid}}
 </style>
 </head>
@@ -151,7 +155,7 @@
 
 
 
-  <script>
+ <script>
 const HC="https://help.humand.co/hc/es-419/";
 const CATALOGO = {
   "Comunicación":[
@@ -193,8 +197,7 @@ const SEMANAS=6;
 const ESTADOS=["Pendiente","En curso","Configurado","Lanzado"];
 const PILL={"Pendiente":"p-pend","En curso":"p-curso","Configurado":"p-conf","Lanzado":"p-lanz"};
 const PESO={"Pendiente":0,"En curso":0.4,"Configurado":0.75,"Lanzado":1};
-const KEY="humand_plan_v5";
-// filas fijas del gantt (hitos): por defecto en las últimas dos semanas
+const KEY="humand_plan_v6";
 const HITOS=[["Revisión Final",SEMANAS-1],["Lanzamiento",SEMANAS]];
 const ALLMODS=function(){return Object.values(CATALOGO).flat().map(function(x){return x[0];});};
 function modInfo(name){for(var c in CATALOGO){var f=CATALOGO[c].find(function(x){return x[0]===name;});if(f)return f;}return null;}
@@ -265,7 +268,33 @@ function generar(){
 }
 function volver(){g("dashboard").classList.add("hidden");g("config").classList.remove("hidden");renderConfig();window.scrollTo(0,0);}
 
-function ganttBar(cls){return '<div class="gbar '+(cls||'')+'"></div>';}
+// bloque arrastrable. tipo: "mod" o "hito"; id: nombre
+function ganttBar(cls,tipo,id){
+  return '<div class="gbar '+(cls||'')+'" draggable="true" '
+    +'ondragstart="dragStart(event,\''+tipo+'\',\''+esc(id)+'\')" '
+    +'ondragend="dragEnd(event)" title="Arrastrá para cambiar de semana">⠿</div>';
+}
+// celda destino
+function ganttCell(week,inner){
+  return '<td class="gcell" data-week="'+week+'" '
+    +'ondragover="dragOver(event)" ondragleave="dragLeave(event)" '
+    +'ondrop="dropBar(event,'+week+')">'+(inner||"")+"</td>";
+}
+
+var DRAG=null;
+function dragStart(ev,tipo,id){DRAG={tipo:tipo,id:id};try{ev.dataTransfer.setData("text/plain",id);ev.dataTransfer.effectAllowed="move";}catch(e){}}
+function dragEnd(ev){DRAG=null;var cs=document.querySelectorAll(".gcell.drop-hover");for(var i=0;i<cs.length;i++)cs[i].classList.remove("drop-hover");}
+function dragOver(ev){ev.preventDefault();ev.dataTransfer.dropEffect="move";ev.currentTarget.classList.add("drop-hover");}
+function dragLeave(ev){ev.currentTarget.classList.remove("drop-hover");}
+function dropBar(ev,week){
+  ev.preventDefault();
+  ev.currentTarget.classList.remove("drop-hover");
+  if(!DRAG)return;
+  if(DRAG.tipo==="mod"){state.mods[DRAG.id].semana=week;}
+  else if(DRAG.tipo==="hito"){state.hitos[DRAG.id]=week;}
+  DRAG=null;
+  save();renderDash();
+}
 
 function renderDash(){
   g("dTitulo").textContent="Plan de Trabajo · "+(state.cliente||"Cliente");
@@ -285,7 +314,6 @@ function renderDash(){
   var gh="<tr><th class='tl'>Módulo / Hito</th>";
   for(var w=1;w<=SEMANAS;w++)gh+="<th>Semana "+w+'<span class="weekdate">'+weekRange(w)+"</span></th>";
   gh+="</tr>";
-  // módulos Etapa 1
   for(var cat in CATALOGO){
     var mods=CATALOGO[cat].filter(function(row){return state.asign[row[0]]==="e1";});
     if(!mods.length)continue;
@@ -293,16 +321,15 @@ function renderDash(){
     mods.forEach(function(row){
       var m=row[0], wk=state.mods[m].semana;
       gh+='<tr><td class="lbl">'+m+"</td>";
-      for(var w2=1;w2<=SEMANAS;w2++)gh+='<td class="gcell">'+(w2===wk?ganttBar("e1"):"")+"</td>";
+      for(var w2=1;w2<=SEMANAS;w2++)gh+=ganttCell(w2, w2===wk?ganttBar("e1","mod",m):"");
       gh+="</tr>";
     });
   }
-  // filas fijas: Revisión Final y Lanzamiento (con selector propio)
   gh+='<tr><td class="lbl" colspan="'+(SEMANAS+1)+'" style="background:#f0f1fa">Cierre</td></tr>';
   HITOS.forEach(function(h){
     var nombre=h[0], wk=state.hitos[nombre];
     gh+='<tr><td class="lbl">'+nombre+' <select class="mini-sel no-print" onchange="setHito(\''+esc(nombre)+'\',this.value)">'+weekOptions(wk)+'</select></td>';
-    for(var w3=1;w3<=SEMANAS;w3++)gh+='<td class="gcell">'+(w3===wk?ganttBar("hito"):"")+"</td>";
+    for(var w3=1;w3<=SEMANAS;w3++)gh+=ganttCell(w3, w3===wk?ganttBar("hito","hito",nombre):"");
     gh+="</tr>";
   });
   g("ganttTable").innerHTML=gh;
