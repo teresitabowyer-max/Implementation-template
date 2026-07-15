@@ -393,7 +393,7 @@ function renderTasks(etapa,conFecha){
   }
   return html;
 }
-function setF(m,f,v){state.mods[m][f]=v;save();renderDash();}
+function setF(m,f,v){if(f==="semana"){v=parseInt(v,10)||1;}state.mods[m][f]=v;save();if(f==="estado"||f==="semana"){renderDash();}}
 function setHito(nombre,v){state.hitos[nombre]=parseInt(v);save();renderDash();}
 
 function renderSteps(){
