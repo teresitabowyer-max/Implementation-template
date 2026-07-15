@@ -48,9 +48,13 @@
   .gtable th.tl{text-align:left;min-width:200px}
   .gtable td{border-bottom:1px solid var(--line);padding:0;height:34px;position:relative}
   .gtable td.lbl{padding:6px 10px;font-weight:600;color:var(--navy)}
-  .gcell{width:70px}
-  .gbar{height:16px;border-radius:5px;margin:0 3px;background:var(--e1)}
+  .gcell{width:70px;transition:background .12s}
+  .gcell.drop-hover{background:#e0e2fb;box-shadow:inset 0 0 0 2px var(--indigo)}
+  .gbar{height:18px;border-radius:5px;margin:0 3px;background:var(--e1);cursor:grab;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.65);font-size:10px;user-select:none}
+  .gbar:active{cursor:grabbing;opacity:.6}
+  .gbar.hito{background:#1b1b4b}
   .weekdate{font-size:10px;color:#c7cae0;font-weight:400;display:block}
+  .mini-sel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px 7px;color:var(--indigo);font-size:11px;font-weight:600;cursor:pointer}
   .cattitle{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:15px;font-weight:700;color:var(--navy)}
   .cattitle small{color:var(--mut);font-weight:500}
   .task{background:#fbfbfe;border:1px solid var(--line);border-radius:11px;padding:12px 14px;margin-bottom:9px}
@@ -60,7 +64,6 @@
   .task .tname a:hover{text-decoration:underline}
   .etapa{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;color:#fff}
   .etapa.e1{background:var(--e1)} .etapa.e2{background:var(--e2)}
-  .weektag{font-size:11px;color:var(--mut);background:#edeef7;padding:2px 8px;border-radius:20px}
   .duetag{font-size:11px;color:var(--indigo);background:#e7e8fb;padding:2px 8px;border-radius:20px;font-weight:600}
   .task-meta{margin-top:9px;max-width:340px}
   .task-meta input{padding:7px 9px;font-size:12.5px}
@@ -82,13 +85,18 @@
   .step .del:hover{color:#e74c3c}
   .savetoast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 20px;border-radius:30px;font-size:13px;font-weight:600;opacity:0;transition:.3s;pointer-events:none;z-index:99}
   .savetoast.show{opacity:1}
-.gcell{width:70px;transition:background .12s}
-  .gcell.drop-hover{background:#e0e2fb;box-shadow:inset 0 0 0 2px var(--indigo)}
-  .gbar{height:18px;border-radius:5px;margin:0 3px;background:var(--e1);cursor:grab;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.65);font-size:10px;user-select:none}
-  .gbar:active{cursor:grabbing;opacity:.6}
-  .gbar.hito{background:#1b1b4b}
-  .mini-sel{background:#fff;border:1px solid var(--line);border-radius:8px;padding:4px 7px;color:var(--indigo);font-size:11px;font-weight:600;cursor:pointer}
-  @media print{body{background:#fff}.no-print{display:none!important}.card,.kpi{border-color:#ccc;box-shadow:none;break-inside:avoid}.task{break-inside:avoid}}
+  @media print{
+    body{background:#fff}
+    .no-print{display:none!important}
+    *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
+    .card,.kpi{border-color:#ccc;box-shadow:none;break-inside:avoid}
+    .task{break-inside:avoid}
+    .gtable th{background:#1b1b4b!important;color:#fff!important}
+    .gbar{background:#4b4fd6!important;color:transparent!important}
+    .gbar.hito{background:#1b1b4b!important}
+    .bar>span{background:#4b4fd6!important}
+    .print-empty{display:none!important}
+  }
 </style>
 </head>
 <body>
@@ -119,7 +127,7 @@
         <button class="btn-ghost" onclick="volver()">Editar config</button>
         <button class="btn-primary" onclick="guardar()">💾 Guardar avances</button>
         <button class="btn-ghost" onclick="exportHTML()">⬇ Exportar index.html</button>
-        <button class="btn-ghost" onclick="window.print()">🖨 Exportar PDF</button>
+        <button class="btn-ghost" onclick="imprimir()">🖨 Exportar PDF</button>
       </div>
     </div>
     <div class="kpis" style="margin-top:16px">
@@ -131,7 +139,7 @@
     <div class="card">
       <h2 style="margin-top:0">📊 Cronograma de lanzamiento (Etapa 1)</h2>
       <div class="gantt"><table class="gtable" id="ganttTable"></table></div>
-      <p class="note">Solo se muestran los módulos de Etapa 1. La fecha límite de cada uno es el viernes de su semana.</p>
+      <p class="note">Arrastrá los bloques o usá el selector de semana en cada módulo. La fecha límite es el viernes de la semana asignada.</p>
     </div>
     <div class="section-title">🚀 Módulos de lanzamiento <span class="badge" style="background:#4b4fd6">ETAPA 1</span></div>
     <div id="cats"></div>
@@ -152,10 +160,7 @@
 <div class="savetoast" id="toast">Avances guardados ✓</div>
 
 
-
-
-
- <script>
+  <script>
 const HC="https://help.humand.co/hc/es-419/";
 const CATALOGO = {
   "Comunicación":[
@@ -268,13 +273,11 @@ function generar(){
 }
 function volver(){g("dashboard").classList.add("hidden");g("config").classList.remove("hidden");renderConfig();window.scrollTo(0,0);}
 
-// bloque arrastrable. tipo: "mod" o "hito"; id: nombre
 function ganttBar(cls,tipo,id){
   return '<div class="gbar '+(cls||'')+'" draggable="true" '
     +'ondragstart="dragStart(event,\''+tipo+'\',\''+esc(id)+'\')" '
     +'ondragend="dragEnd(event)" title="Arrastrá para cambiar de semana">⠿</div>';
 }
-// celda destino
 function ganttCell(week,inner){
   return '<td class="gcell" data-week="'+week+'" '
     +'ondragover="dragOver(event)" ondragleave="dragLeave(event)" '
@@ -398,6 +401,21 @@ function load(){try{return JSON.parse(localStorage.getItem(KEY));}catch(e){retur
 
 function guardar(){save();var t=g("toast");t.classList.add("show");setTimeout(function(){t.classList.remove("show");},1600);}
 
+function imprimir(){
+  save();
+  var notas=(state.notasInternas||"").trim();
+  var hayPasos=state.steps.some(function(s){return (s.txt||"").trim()!=="";});
+  var cardNotas=g("notasInternas").closest(".card");
+  var cardPasos=g("stepList").closest(".card");
+  if(cardNotas) cardNotas.classList.toggle("print-empty", notas==="");
+  if(cardPasos) cardPasos.classList.toggle("print-empty", !hayPasos);
+  window.print();
+  setTimeout(function(){
+    if(cardNotas)cardNotas.classList.remove("print-empty");
+    if(cardPasos)cardPasos.classList.remove("print-empty");
+  },500);
+}
+
 function exportHTML(){
   save();
   var doc="<!DOCTYPE html>\n"+document.documentElement.outerHTML;
@@ -411,3 +429,5 @@ function exportHTML(){
 if(window.__PRELOAD__){g("config").classList.add("hidden");g("dashboard").classList.remove("hidden");renderDash();}
 else renderConfig();
 </script>
+</body>
+</html>
