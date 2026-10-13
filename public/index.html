@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Planes de implementación · Humand</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;600&display=swap">
+<link rel="stylesheet" href="/assets/app.css">
+<style>
+  .top { background: #fff; border-bottom: 1px solid var(--line); }
+  .top .wrap { display: flex; align-items: center; gap: 16px; min-height: 64px; flex-wrap: wrap; }
+  .hu-logo { font-size: 22px; font-weight: 600; letter-spacing: -.5px; color: var(--hu-950); }
+  .hu-logo span { color: var(--hu-500); }
+  .top .who { margin-left: auto; font-size: 13px; color: var(--text-2); display: flex; gap: 10px; align-items: center; }
+  h1 { font-size: 24px; margin: 32px 0 4px; }
+  .lead { color: var(--text-2); margin-bottom: 24px; }
+  .plans { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .pcard { background: #fff; border: 1px solid var(--line); border-radius: var(--r-l); padding: 18px; display: flex; flex-direction: column; gap: 10px; text-decoration: none; color: inherit; transition: box-shadow .15s; position: relative; overflow: hidden; }
+  .pcard:hover { box-shadow: var(--shadow-8); }
+  .pcard .stripe { position: absolute; top: 0; left: 0; right: 0; height: 4px; }
+  .pcard h3 { font-size: 16px; }
+  .pcard .meta { font-size: 12px; color: var(--text-3); }
+  .prog { height: 6px; background: var(--n-100); border-radius: 99px; overflow: hidden; }
+  .prog span { display: block; height: 100%; background: var(--ok-600); }
+  .pcard .acts { display: flex; gap: 6px; margin-top: 4px; }
+  .login { max-width: 420px; margin: 64px auto; }
+  .steps { display: flex; gap: 8px; margin-bottom: 8px; }
+  .steps span { flex: 1; height: 4px; border-radius: 99px; background: var(--n-150); }
+  .steps span.on { background: var(--hu-500); }
+  .modgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
+  .modgrid .cat { grid-column: 1 / -1; font-size: 12px; font-weight: 600; color: var(--text-3); margin-top: 10px; }
+  .mod { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--n-100); font-size: 13px; }
+  .seg { display: inline-flex; border: 1px solid var(--line-2); border-radius: var(--r-s); overflow: hidden; flex-shrink: 0; }
+  .seg button { border: 0; background: #fff; padding: 4px 8px; font-size: 11px; font-weight: 600; color: var(--text-3); cursor: pointer; }
+  .seg button.on.e1 { background: var(--hu-500); color: #fff; }
+  .seg button.on.e2 { background: var(--sky-700); color: #fff; }
+  .seg button.on.off { background: var(--n-300); color: #fff; }
+  .logo-prev { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px dashed var(--line-2); border-radius: var(--r-m); min-height: 64px; }
+  .logo-prev img { max-height: 40px; max-width: 160px; }
+  @media (max-width: 699px) { .modgrid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><div class="hu-logo">huma<span>n</span>d</div><span class="muted">Planes de implementación</span><div class="who" id="who"></div></div></header>
+<main class="wrap" id="app"></main>
+<div class="toast" id="toast"></div>
+<script src="/assets/catalog.js"></script>
+<script src="/assets/admin.js"></script>
+</body>
+</html>
