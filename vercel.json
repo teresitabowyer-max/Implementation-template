@@ -1,6 +1,6 @@
 {
   "cleanUrls": true,
-  "rewrites": [{ "source": "/p/:id", "destination": "/plan.html" }],
+  "rewrites": [{ "source": "/p/:id", "destination": "/plan" }],
   "crons": [{ "path": "/api/cron", "schedule": "0 11 * * *" }],
   "headers": [
     { "source": "/p/(.*)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }] }
