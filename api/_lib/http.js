@@ -21,13 +21,20 @@ export function query(req) {
   return Object.fromEntries(u.searchParams.entries());
 }
 
-// ---------- sesiones de equipo Humand ----------
+// ---------- sesiones: cada persona de Humand entra con su mail ----------
 const DEV = !process.env.VERCEL;
 const SECRET = process.env.SESSION_SECRET || (DEV ? 'dev-secret' : null);
 const PASSWORD = process.env.ADMIN_PASSWORD || (DEV ? 'humand' : null);
+export const DOMAIN = (process.env.ALLOWED_DOMAIN || 'humand.co').toLowerCase();
+const LEADERS = (process.env.LEADER_EMAILS || '').toLowerCase().split(/[,;\s]+/).filter(Boolean);
 
 const b64 = s => Buffer.from(s).toString('base64url');
 const sign = s => crypto.createHmac('sha256', SECRET).update(s).digest('base64url');
+
+export const normEmail = e => String(e || '').trim().toLowerCase();
+export const isTeamEmail = e => { const m = normEmail(e); return /^[^@\s]+@[^@\s]+$/.test(m) && m.endsWith('@' + DOMAIN); };
+export const isLeader = e => LEADERS.includes(normEmail(e));
+export const nameFromEmail = e => normEmail(e).split('@')[0].split(/[._-]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
 
 export function checkPassword(pw) {
   if (!PASSWORD || !SECRET) return false;
@@ -36,28 +43,34 @@ export function checkPassword(pw) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-export function issueToken(user) {
-  const payload = b64(JSON.stringify({ ...user, exp: Date.now() + 1000 * 60 * 60 * 24 * 30 }));
+function makeToken(obj, ms) {
+  const payload = b64(JSON.stringify({ ...obj, exp: Date.now() + ms }));
   return `${payload}.${sign(payload)}`;
 }
-
-export function currentUser(req) {
-  if (!SECRET) return null;
-  const h = req.headers['authorization'] || '';
-  const tok = h.startsWith('Bearer ') ? h.slice(7) : '';
-  const [payload, sig] = tok.split('.');
+export function readToken(tok) {
+  if (!SECRET || !tok) return null;
+  const [payload, sig] = String(tok).split('.');
   if (!payload || !sig) return null;
   const expected = sign(payload);
   if (sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
-  try {
-    const u = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-    return u.exp > Date.now() ? u : null;
-  } catch { return null; }
+  try { const u = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); return u.exp > Date.now() ? u : null; }
+  catch { return null; }
+}
+
+export const issueToken = user => makeToken({ t: 'session', name: user.name, email: normEmail(user.email) }, 1000 * 60 * 60 * 24 * 30);
+export const issueMagic = (email, name) => makeToken({ t: 'magic', email: normEmail(email), name }, 1000 * 60 * 20);
+
+export function currentUser(req) {
+  const h = req.headers['authorization'] || '';
+  const u = readToken(h.startsWith('Bearer ') ? h.slice(7) : '');
+  if (!u || u.t === 'magic' || !isTeamEmail(u.email)) return null;
+  const email = normEmail(u.email);
+  return { name: u.name || nameFromEmail(email), email, leader: isLeader(email) };
 }
 
 export function requireUser(req, res) {
   const u = currentUser(req);
-  if (!u) { json(res, 401, { error: 'Necesitás iniciar sesión con la contraseña del equipo.' }); return null; }
+  if (!u) { json(res, 401, { error: 'Necesitás iniciar sesión con tu mail de Humand.' }); return null; }
   return u;
 }
 

@@ -32,10 +32,8 @@ export async function sendMail({ to, cc = [], subject, html, replyTo }) {
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmt = d => { if (!d) return ''; const [y, m, dd] = d.slice(0, 10).split('-'); return `${dd}/${m}/${y}`; };
 
-export function planUrl(planId) {
-  const base = process.env.PUBLIC_BASE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : 'http://localhost:3000');
-  return `${base}/p/${planId}`;
-}
+export const baseUrl = () => process.env.PUBLIC_BASE_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : `http://localhost:${process.env.PORT || 3000}`);
+export function planUrl(planId) { return `${baseUrl()}/p/${planId}`; }
 
 // Recolecta tareas pendientes de las minutas (opcionalmente filtradas por ids)
 export function pendingTasks(data, ids) {

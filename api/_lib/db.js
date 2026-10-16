@@ -16,6 +16,9 @@ function readLocal() {
   try { return JSON.parse(fs.readFileSync(LOCAL_FILE, 'utf8')); }
   catch { return { plans: [], reminders: [] }; }
 }
+function readLocalFull() {
+  const db = readLocal(); db.shares ||= []; db.activity ||= []; return db;
+}
 function writeLocal(db) {
   fs.mkdirSync(path.dirname(LOCAL_FILE), { recursive: true });
   fs.writeFileSync(LOCAL_FILE, JSON.stringify(db, null, 2));
@@ -40,15 +43,34 @@ async function sb(pathAndQuery, { method = 'GET', body, prefer } = {}) {
 const now = () => new Date().toISOString();
 
 // ---------- planes ----------
-export async function listPlans() {
+const card = ({ data, ...r }) => ({ ...r, summary: summarize(data) });
+const nowIso = () => new Date().toISOString();
+const activeShare = sh => !sh.expires_at || sh.expires_at > nowIso();
+
+// Devuelve las tres carpetas: mis proyectos, compartidos conmigo y (líderes) todo el equipo.
+export async function listPlansFor(user) {
+  const me = user.email;
+  let all, shares;
   if (LOCAL) {
-    return readLocal().plans
-      .filter(p => !p.archived)
-      .map(({ id, client_name, updated_at, created_at, data }) => ({ id, client_name, updated_at, created_at, summary: summarize(data) }))
-      .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+    const db = readLocalFull();
+    all = db.plans.filter(p => !p.archived);
+    shares = db.shares.filter(sh => sh.email === me && activeShare(sh));
+  } else {
+    shares = (await sb(`plan_shares?email=eq.${encodeURIComponent(me)}&select=*`)).filter(activeShare);
+    const sel = 'select=id,client_name,owner_email,updated_at,updated_by,created_at,data&archived=eq.false&order=updated_at.desc';
+    if (user.leader) all = await sb(`plans?${sel}`);
+    else {
+      const ids = shares.map(sh => `"${sh.plan_id.replace(/"/g, '')}"`).join(',');
+      all = await sb(`plans?${sel}&or=(owner_email.eq.${encodeURIComponent(me)}${ids ? `,id.in.(${encodeURIComponent(ids)})` : ''})`);
+    }
   }
-  const rows = await sb('plans?select=id,client_name,updated_at,created_at,data&archived=eq.false&order=updated_at.desc');
-  return rows.map(({ data, ...r }) => ({ ...r, summary: summarize(data) }));
+  all.sort((x, y) => String(y.updated_at).localeCompare(String(x.updated_at)));
+  const byId = new Map(shares.map(sh => [sh.plan_id, sh]));
+  const mine = all.filter(p => p.owner_email === me).map(card);
+  const shared = all.filter(p => p.owner_email !== me && byId.has(p.id))
+    .map(p => ({ ...card(p), share: { role: byId.get(p.id).role, expires_at: byId.get(p.id).expires_at, by: byId.get(p.id).created_by } }));
+  const team = user.leader ? all.filter(p => p.owner_email !== me).map(card) : [];
+  return { mine, shared, team };
 }
 
 function summarize(d = {}) {
@@ -71,7 +93,7 @@ export async function getPlan(id) {
 }
 
 export async function createPlan({ id, client_name, data, user }) {
-  const row = { id, client_name, data, archived: false, created_at: now(), updated_at: now(), updated_by: user || null };
+  const row = { id, client_name, data, owner_email: user, archived: false, created_at: now(), updated_at: now(), updated_by: user || null };
   if (LOCAL) { const db = readLocal(); db.plans.push(row); writeLocal(db); return row; }
   const out = await sb('plans', { method: 'POST', body: row, prefer: 'return=representation' });
   return out[0];
@@ -137,4 +159,53 @@ export async function plansWithDigest() {
   const all = LOCAL ? readLocal().plans.filter(p => !p.archived)
     : await sb('plans?archived=eq.false&select=id,client_name,data');
   return all.filter(p => p.data?.settings?.digest?.on);
+}
+
+// ---------- permisos ----------
+export async function getShare(planId, email) {
+  if (LOCAL) return readLocalFull().shares.find(sh => sh.plan_id === planId && sh.email === email) || null;
+  const r = await sb(`plan_shares?plan_id=eq.${encodeURIComponent(planId)}&email=eq.${encodeURIComponent(email)}&select=*`);
+  return r[0] || null;
+}
+
+// owner | edit | view | leader | null
+export async function accessFor(plan, user) {
+  if (!plan || !user) return null;
+  if (plan.owner_email === user.email) return 'owner';
+  const sh = await getShare(plan.id, user.email);
+  if (sh && activeShare(sh)) return sh.role === 'view' ? 'view' : 'edit';
+  if (user.leader) return 'leader';
+  return null;
+}
+export const canEdit = a => a === 'owner' || a === 'edit';
+
+export async function listShares(planId) {
+  if (LOCAL) return readLocalFull().shares.filter(sh => sh.plan_id === planId);
+  return sb(`plan_shares?plan_id=eq.${encodeURIComponent(planId)}&select=*&order=created_at.asc`);
+}
+export async function upsertShare(row) {
+  const r = { created_at: now(), expires_at: null, role: 'edit', ...row };
+  if (LOCAL) { const db = readLocalFull(); db.shares = db.shares.filter(sh => !(sh.plan_id === r.plan_id && sh.email === r.email)); db.shares.push(r); writeLocal(db); return r; }
+  const out = await sb('plan_shares?on_conflict=plan_id,email', { method: 'POST', body: r, prefer: 'resolution=merge-duplicates,return=representation' });
+  return out[0];
+}
+export async function deleteShare(planId, email) {
+  if (LOCAL) { const db = readLocalFull(); db.shares = db.shares.filter(sh => !(sh.plan_id === planId && sh.email === email)); writeLocal(db); return; }
+  await sb(`plan_shares?plan_id=eq.${encodeURIComponent(planId)}&email=eq.${encodeURIComponent(email)}`, { method: 'DELETE' });
+}
+export async function setOwner(planId, email) {
+  if (LOCAL) { const db = readLocalFull(); const p = db.plans.find(x => x.id === planId); if (p) p.owner_email = email; writeLocal(db); return; }
+  await sb(`plans?id=eq.${encodeURIComponent(planId)}`, { method: 'PATCH', body: { owner_email: email } });
+}
+
+// ---------- historial ----------
+export async function addActivity(planId, actor, summaries) {
+  if (!summaries.length) return;
+  const rows = summaries.map(summary => ({ id: crypto.randomUUID(), plan_id: planId, actor, summary, created_at: now() }));
+  if (LOCAL) { const db = readLocalFull(); db.activity.push(...rows); writeLocal(db); return; }
+  await sb('plan_activity', { method: 'POST', body: rows });
+}
+export async function listActivity(planId, limit = 200) {
+  if (LOCAL) return readLocalFull().activity.filter(a => a.plan_id === planId).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, limit);
+  return sb(`plan_activity?plan_id=eq.${encodeURIComponent(planId)}&select=*&order=created_at.desc&limit=${limit}`);
 }
