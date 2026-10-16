@@ -32,3 +32,30 @@ create index if not exists reminders_plan_idx on public.reminders (plan_id);
 -- Solo las funciones del servidor (service role) acceden.
 alter table public.plans enable row level security;
 alter table public.reminders enable row level security;
+
+-- v3: cada plan tiene dueño, se puede compartir y queda historial de cambios
+alter table public.plans add column if not exists owner_email text;
+create index if not exists plans_owner_idx on public.plans (owner_email);
+
+create table if not exists public.plan_shares (
+  plan_id text not null references public.plans(id) on delete cascade,
+  email text not null,
+  role text not null default 'edit',      -- edit | view
+  expires_at timestamptz,
+  created_by text,
+  created_at timestamptz not null default now(),
+  primary key (plan_id, email)
+);
+create index if not exists plan_shares_email_idx on public.plan_shares (email);
+
+create table if not exists public.plan_activity (
+  id uuid primary key default gen_random_uuid(),
+  plan_id text not null references public.plans(id) on delete cascade,
+  actor text,
+  summary text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists plan_activity_plan_idx on public.plan_activity (plan_id, created_at desc);
+
+alter table public.plan_shares enable row level security;
+alter table public.plan_activity enable row level security;
