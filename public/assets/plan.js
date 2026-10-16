@@ -7,7 +7,7 @@
   // ---------- estado ----------
   const st = P.st = {
     id: SNAP ? null : decodeURIComponent(location.pathname.split('/p/')[1] || new URLSearchParams(location.search).get('id') || '').replace(/\/$/, ''),
-    data: null, updatedAt: null, canEdit: false, preview: false, user: null, config: {},
+    data: null, updatedAt: null, canEdit: false, access: null, ownerEmail: null, preview: false, user: null, config: {},
     tab: 'plan', updates: [], updatesState: 'idle', reminders: [], saving: 'idle', conflict: null,
     exportOpts: null, printing: false, dayW: 20,
   };
@@ -156,7 +156,7 @@
     if (!tabs.find(t => t.k === st.tab)) st.tab = 'plan';
     const panels = st.printing ? tabs.map(t => t.k) : [st.tab];
     const html = `
-      ${st.canEdit && !SNAP ? P.editBar() : ''}
+      ${st.access && !SNAP ? P.editBar() : ''}
       ${st.conflict ? `<div class="conflict-banner">Otra persona guardó cambios en este plan mientras editabas. <button class="btn sm ghost" data-act="reload">Ver su versión</button> <button class="btn sm danger" data-act="force">Mantener la mía</button></div>` : ''}
       ${st.preview ? `<div class="preview-banner">Estás viendo el plan como lo ve el cliente. <a href="#" data-act="preview">Volver a editar</a></div>` : ''}
       ${P.header()}
@@ -166,7 +166,7 @@
         ${!P.editing() ? `<button class="tab no-print" data-act="print-client" title="Descargar en PDF">⬇ PDF</button>` : ''}
       </div></nav>
       ${panels.map(k => `<main class="panel wrap" data-panel="${k}">${P.panel(k)}</main>`).join('')}
-      <footer class="wrap pfoot">humand · Plataforma todo en uno para la gestión de RR. HH.<br>Documento preparado para ${esc(d.client.name)}${d.dates.issued ? ' · ' + D.long(d.dates.issued) : ''}${SNAP ? ` · Versión descargada el ${D.dmy(SNAP.generatedAt)}` : ''}${!SNAP && !st.canEdit ? `<br><a href="/?volver=${encodeURIComponent(location.pathname)}" class="no-print" style="color:var(--text-3);font-size:11px">Acceso equipo Humand</a>` : ''}</footer>`;
+      <footer class="wrap pfoot">humand · Plataforma todo en uno para la gestión de RR. HH.<br>Documento preparado para ${esc(d.client.name)}${d.dates.issued ? ' · ' + D.long(d.dates.issued) : ''}${SNAP ? ` · Versión descargada el ${D.dmy(SNAP.generatedAt)}` : ''}${!SNAP && !st.access ? `<br><a href="/?volver=${encodeURIComponent(location.pathname)}" class="no-print" style="color:var(--text-3);font-size:11px">Acceso equipo Humand</a>` : ''}</footer>`;
     const sc = P.$('.gantt-scroll'); const sx = sc ? sc.scrollLeft : null;
     P.$('#app').innerHTML = html;
     P.afterRender(sx);
@@ -191,15 +191,18 @@
 
   P.editBar = () => {
     if (st.preview) return '';
+    const who = e => (e || '').split('@')[0].split(/[._-]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+    const tag = { owner: 'Modo edición · tu plan', edit: `Modo edición · plan de ${esc(who(st.ownerEmail))}`, view: `Solo lectura · plan de ${esc(who(st.ownerEmail))}`, leader: `Vista de líder · plan de ${esc(who(st.ownerEmail))}` }[st.access] || '';
     return `<div class="editbar no-print"><div class="wrap">
       <a class="back" href="/">← Mis planes</a>
-      <span class="tag">Modo edición · solo equipo Humand</span>
+      <span class="tag ${st.access === 'owner' ? '' : 'other'}">${tag}</span>
       <span class="save" id="saveState"></span>
       <span class="sp"></span>
-      <button class="btn ghost" data-act="preview">👁 Ver como cliente</button>
-      <button class="btn ghost" data-act="copy-link">🔗 Copiar link del cliente</button>
-      <button class="btn ghost" data-act="config">⚙ Configurar</button>
-      <button class="btn" data-act="export">⬇ Exportar</button>
+      ${st.canEdit ? '<button class="btn ghost" data-act="preview">👁 Ver como cliente</button>' : ''}
+      <button class="btn ghost" data-act="copy-link">🔗 Link del cliente</button>
+      <button class="btn ghost" data-act="history">🕘 Historial</button>
+      ${st.access === 'owner' ? '<button class="btn ghost" data-act="share">👥 Compartir</button>' : ''}
+      ${st.canEdit ? '<button class="btn ghost" data-act="config">⚙ Configurar</button><button class="btn" data-act="export">⬇ Exportar</button>' : ''}
     </div></div>`;
   };
 
@@ -393,7 +396,7 @@
       } else {
         if (!st.id) throw new Error('Link inválido');
         const [planRes, me] = await Promise.all([P.api(`/api/plan?id=${encodeURIComponent(st.id)}`), P.api('/api/me').catch(() => ({}))]);
-        st.data = migrate(planRes.plan.data); st.updatedAt = planRes.plan.updated_at; st.canEdit = planRes.canEdit;
+        st.data = migrate(planRes.plan.data); st.updatedAt = planRes.plan.updated_at; st.canEdit = planRes.canEdit; st.access = planRes.access || null; st.ownerEmail = planRes.plan.owner_email || null;
         st.user = me.user; st.config = me.config || {};
         if (new URLSearchParams(location.search).has('cliente')) st.preview = true;
       }

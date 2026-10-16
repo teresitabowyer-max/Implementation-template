@@ -116,7 +116,7 @@
     const acts = {
       preview: () => { st.preview = !st.preview; P.render(); window.scrollTo({ top: 0 }); },
       'copy-link': () => { const u = `${location.origin}/p/${st.id}`; navigator.clipboard?.writeText(u).then(() => P.toast('Link del cliente copiado. Solo puede ver, no editar.'), () => prompt('Link del cliente:', u)); },
-      config: openConfig, export: openExport, 'add-row': openAddRow, holidays: openHolidays, 'add-integration': () => openAddRow('integration'),
+      config: openConfig, export: openExport, share: openShare, history: openHistory, 'add-row': openAddRow, holidays: openHolidays, 'add-integration': () => openAddRow('integration'),
       'sort-rows': () => { const order = { milestone: 0, module: 1, integration: 1, custom: 1, golive: 2 }; st.data.rows.sort((x, y) => (x.start || '').localeCompare(y.start || '') || (order[x.type] - order[y.type])); P.save(); P.render(); },
       rebase: () => { if (!confirm('Las fechas actuales pasan a ser el plan original (se borran las barras punteadas). ¿Continuar?')) return; st.data.rows.forEach(r => { r.baseStart = r.start; r.baseEnd = r.end || r.start; }); P.save(); P.render(); },
       'new-minuta': () => openMinuta(null), digest: openDigest, 'add-update': () => openUpdate(null),
@@ -506,6 +506,70 @@
     return best ? P.colorUtil.rgb2hex([best.r / best.n, best.g / best.n, best.b / best.n]) : null;
   };
 
+  // ---------- compartir con el equipo ----------
+  const who = e => (e || '').split('@')[0].split(/[._-]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+  async function openShare() {
+    let info;
+    try { info = await P.api(`/api/shares?plan=${encodeURIComponent(st.id)}`); } catch (e) { return alert(e.message); }
+    const dom = st.config.domain || 'humand.co';
+    const today = D.today();
+    const rows = info.shares.map(sh => {
+      const expired = sh.expires_at && sh.expires_at < new Date().toISOString();
+      return `<div class="share-row"><div><b>${esc(who(sh.email))}</b> <span class="muted">${esc(sh.email)}</span><br>
+        <small class="muted">${sh.role === 'view' ? 'Solo ver' : 'Puede editar'} · ${sh.expires_at ? (expired ? '<span style="color:var(--err-600,#c00)">venció</span> el ' : 'hasta el ') + new Date(sh.expires_at).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) : 'sin vencimiento'}</small></div>
+        <button class="btn sm ghost" data-unshare="${esc(sh.email)}">Quitar</button></div>`;
+    }).join('');
+    P.openLayer(`<div class="modal" role="dialog" aria-label="Compartir plan" style="width:min(560px,100%)">
+      <header><h3>👥 Compartir con el equipo</h3><button class="icon-btn" data-x>✕</button></header>
+      <p class="muted" style="font-size:13px">Tu compañero lo va a ver en su carpeta <b>“Compartidos conmigo”</b>, separado de sus proyectos. Ideal para cubrirte en vacaciones: poné una fecha y el acceso se quita solo.</p>
+      <div class="grid3" style="grid-template-columns:2fr 1fr 1fr">
+        <label class="field"><span>Mail</span><input class="input" id="s-email" placeholder="nombre@${esc(dom)}"></label>
+        <label class="field"><span>Permiso</span><select class="input" id="s-role"><option value="edit">Puede editar</option><option value="view">Solo ver</option></select></label>
+        <label class="field"><span>Hasta (opcional)</span><input type="date" class="input" id="s-until" min="${today}"></label>
+      </div>
+      <div class="row" style="justify-content:flex-end"><button class="btn" data-share>Compartir</button></div>
+      <h4 style="margin-top:8px">Con acceso</h4>
+      <div class="share-list">${rows || '<div class="muted" style="font-size:13px">Todavía no lo compartiste con nadie.</div>'}</div>
+      <details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600;font-size:13px">Transferir el plan a otra persona</summary>
+        <p class="muted" style="font-size:12px;margin:6px 0">Para cuando el cliente pasa a otra persona del equipo. El plan se mueve a su carpeta “Mis proyectos” y vos lo seguís viendo en “Compartidos conmigo”.</p>
+        <div class="row"><input class="input" id="t-email" placeholder="nombre@${esc(dom)}" style="flex:1"><button class="btn ghost" data-transfer>Transferir</button></div>
+      </details>
+      <footer><span style="flex:1"></span><button class="btn ghost" data-x>Cerrar</button></footer></div>`, {
+      onMount: root => {
+        root.querySelectorAll('[data-x]').forEach(b => b.onclick = P.closeLayer);
+        root.querySelector('[data-share]').onclick = async () => {
+          const email = val(root, '#s-email'); if (!email) return root.querySelector('#s-email').focus();
+          try {
+            await P.api('/api/shares', { method: 'POST', body: { plan: st.id, email, role: val(root, '#s-role'), until: val(root, '#s-until') || null } });
+            P.toast(`Compartido con ${who(email)}${st.config.mail ? ' · le llegó un aviso por mail' : ''}`); openShare();
+          } catch (e) { alert(e.message); }
+        };
+        root.querySelectorAll('[data-unshare]').forEach(b => b.onclick = async () => {
+          if (!confirm(`¿Quitarle el acceso a ${b.dataset.unshare}?`)) return;
+          try { await P.api(`/api/shares?plan=${encodeURIComponent(st.id)}&email=${encodeURIComponent(b.dataset.unshare)}`, { method: 'DELETE' }); openShare(); } catch (e) { alert(e.message); }
+        });
+        root.querySelector('[data-transfer]').onclick = async () => {
+          const to = val(root, '#t-email'); if (!to) return root.querySelector('#t-email').focus();
+          if (!confirm(`¿Transferir el plan de ${st.data.client.name} a ${to}? Pasa a ser su responsable y vos quedás con acceso para editar.`)) return;
+          try { await P.api('/api/shares', { method: 'POST', body: { plan: st.id, transferTo: to } }); P.toast('Plan transferido'); setTimeout(() => location.reload(), 900); } catch (e) { alert(e.message); }
+        };
+      },
+    });
+  }
+
+  // ---------- historial de cambios ----------
+  async function openHistory() {
+    let list = [];
+    try { list = (await P.api(`/api/activity?plan=${encodeURIComponent(st.id)}`)).activity; } catch (e) { return alert(e.message); }
+    const groups = new Map();
+    list.forEach(a => { const d = new Date(a.created_at); let k = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }); k = k.charAt(0).toUpperCase() + k.slice(1); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(a); });
+    const body = list.length ? [...groups].map(([day, items]) => `<h4>${esc(day)}</h4>${items.map(a => `<div class="hist"><span class="t">${new Date(a.created_at).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}</span><span><b>${esc(a.actor === st.user?.email ? 'Vos' : who(a.actor))}</b> · ${esc(a.summary)}</span></div>`).join('')}`).join('')
+      : '<div class="muted" style="font-size:13px">Todavía no hay cambios registrados. A partir de ahora, cada cambio queda anotado con quién lo hizo.</div>';
+    P.openLayer(`<div class="drawer" style="width:min(520px,100%)" role="dialog" aria-label="Historial">
+      <header><h3>🕘 Historial de cambios</h3><button class="icon-btn" data-x>✕</button></header>
+      <div>${body}</div></div>`, { center: false, onMount: root => root.querySelectorAll('[data-x]').forEach(b => b.onclick = P.closeLayer) });
+  }
+
   function openConfig() {
     const d = st.data; const s = d.settings;
     const stageOf = k => d.rows.some(r => r.key === k && r.type === 'module') ? 'e1' : d.stage2.includes(k) ? 'e2' : 'off';
@@ -532,7 +596,7 @@
       ${CATS.map(c => `<div><div style="font-size:12px;font-weight:600;color:var(--text-3);margin:6px 0">${esc(c)}</div>${MODULES.filter(m => m.cat === c).map(m => `<div class="row" style="justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--n-100)"><span>${esc(m.name)}</span><select class="input" data-stage="${m.key}" style="width:auto;padding:4px 8px;font-size:12px">${[['e1', 'Etapa 1'], ['e2', 'Etapa 2'], ['off', '—']].map(([k, v]) => `<option value="${k}" ${stageOf(m.key) === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>`).join('')}</div>`).join('')}
       <h4>¿Qué ve el cliente? (link y exportables)</h4>
       ${toggles.map(([k, l, h]) => `<label class="switch"><input type="checkbox" data-set="${k}" ${s[k] ? 'checked' : ''}> <span>${l}${h ? `<br><small class="muted">${h}</small>` : ''}</span></label>`).join('')}
-      <footer><button class="btn danger" data-archive>Archivar plan</button><span style="flex:1"></span><button class="btn ghost" data-x>Cancelar</button><button class="btn" data-ok>Guardar</button></footer></div>`, {
+      <footer>${st.access === 'owner' ? '<button class="btn danger" data-archive>Archivar plan</button>' : ''}<span style="flex:1"></span><button class="btn ghost" data-x>Cancelar</button><button class="btn" data-ok>Guardar</button></footer></div>`, {
       center: false, onMount: root => {
         const pending = { logo: d.client.logo, color: d.client.brandColor, contacts: structuredClone(d.client.contacts || []) };
         const readContacts = () => { root.querySelectorAll('[data-ci]').forEach(el => { const c = pending.contacts[el.dataset.ci]; el.querySelectorAll('[data-ck]').forEach(i => c[i.dataset.ck] = i.value.trim()); }); };
@@ -546,7 +610,7 @@
         root.querySelector('#c-colorhex').oninput = e => { if (/^#[0-9a-f]{6}$/i.test(e.target.value)) { pending.color = e.target.value; root.querySelector('#c-color').value = e.target.value; } };
         root.querySelector('[data-addc]').onclick = () => { readContacts(); pending.contacts.push({ name: '', email: '', role: '' }); const box = root.querySelector('#c-contacts'); const i = pending.contacts.length - 1; box.insertAdjacentHTML('beforeend', `<div class="row" data-ci="${i}" style="gap:6px"><input class="input" data-ck="name" placeholder="Nombre" style="flex:1"><input class="input" data-ck="email" placeholder="mail" style="flex:1.3"><input class="input" data-ck="role" placeholder="Rol" style="flex:.8"></div>`); };
         root.querySelectorAll('[data-rmc]').forEach(b => b.onclick = () => { readContacts(); pending.contacts.splice(+b.dataset.rmc, 1); b.closest('[data-ci]').remove(); root.querySelectorAll('[data-ci]').forEach((el, i) => el.dataset.ci = i); });
-        root.querySelector('[data-archive]').onclick = async () => { if (!confirm('¿Archivar este plan? El link del cliente dejará de funcionar.')) return; await P.api(`/api/plan?id=${encodeURIComponent(st.id)}`, { method: 'DELETE' }); location.href = '/'; };
+        root.querySelector('[data-archive]') && (root.querySelector('[data-archive]').onclick = async () => { if (!confirm('¿Archivar este plan? El link del cliente dejará de funcionar.')) return; await P.api(`/api/plan?id=${encodeURIComponent(st.id)}`, { method: 'DELETE' }); location.href = '/'; });
         root.querySelector('[data-ok]').onclick = () => {
           readContacts();
           d.client.name = val(root, '#c-name') || d.client.name;

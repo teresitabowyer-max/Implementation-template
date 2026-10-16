@@ -15,53 +15,88 @@
   }
   function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 3000); }
 
-  let me = null;
+  let me = null, cfg = {};
 
   // ---------- ingreso ----------
-  function loginView(err) {
+  function afterLogin(j) {
+    store.set('hu_token', j.token); store.set('hu_name', j.user.name); store.set('hu_email', j.user.email);
+    const back = store.get('hu_back'); store.set('hu_back', null);
+    if (back && back.startsWith('/p/')) location.href = back; else { history.replaceState(null, '', '/'); boot(); }
+  }
+  function loginView(err, sentTo) {
     $('#who').innerHTML = '';
+    const dom = cfg.domain || 'humand.co';
+    const pw = cfg.login === 'password';
+    if (sentTo) {
+      $('#app').innerHTML = `<div class="login card" style="text-align:center">
+        <div style="font-size:40px">📬</div><h2 style="font-size:20px;margin:8px 0">Revisá tu mail</h2>
+        <p class="muted">Te mandamos un link para entrar a <b>${esc(sentTo)}</b>. Vence en 20 minutos.<br>Si no lo ves, fijate en spam o promociones.</p>
+        <button class="btn ghost" id="again" style="margin-top:16px">Usar otro mail</button></div>`;
+      $('#again').onclick = () => loginView();
+      return;
+    }
     $('#app').innerHTML = `<div class="login card">
       <h2 style="font-size:20px;margin-bottom:4px">Ingresá al generador de planes</h2>
-      <p class="muted" style="margin-bottom:16px">Solo para el equipo de Humand. Los clientes ven su plan con el link que les compartas, sin poder editarlo.</p>
+      <p class="muted" style="margin-bottom:16px">Solo para el equipo de Humand: cada persona ve sus propios planes y los que le compartieron. ${pw ? '' : 'Te mandamos un link a tu mail para entrar, sin contraseña.'}</p>
       <form id="lf" style="display:flex;flex-direction:column;gap:12px">
-        <label class="field"><span>Tu nombre</span><input class="input" name="name" required value="${esc(store.get('hu_name') || '')}"></label>
-        <label class="field"><span>Tu mail</span><input class="input" type="email" name="email" required value="${esc(store.get('hu_email') || '')}"></label>
-        <label class="field"><span>Contraseña del equipo</span><input class="input" type="password" name="password" required></label>
+        <label class="field"><span>Tu mail de Humand</span><input class="input" type="email" name="email" required placeholder="nombre@${esc(dom)}" value="${esc(store.get('hu_email') || '')}"></label>
+        ${pw ? `<label class="field"><span>Contraseña del equipo</span><input class="input" type="password" name="password" required></label>` : ''}
         ${err ? `<div class="chip err" style="align-self:flex-start">${esc(err)}</div>` : ''}
-        <button class="btn" style="justify-content:center">Ingresar</button>
+        <button class="btn" style="justify-content:center">${pw ? 'Ingresar' : 'Enviarme el link'}</button>
       </form></div>`;
     $('#lf').onsubmit = async e => {
-      e.preventDefault(); const f = new FormData(e.target);
+      e.preventDefault(); const f = Object.fromEntries(new FormData(e.target));
+      const btn = e.target.querySelector('button'); btn.disabled = true;
       try {
-        const j = await api('/api/login', { method: 'POST', body: Object.fromEntries(f) });
-        store.set('hu_token', j.token); store.set('hu_name', j.user.name); store.set('hu_email', j.user.email);
-        const back = new URLSearchParams(location.search).get('volver');
-        if (back && back.startsWith('/p/')) location.href = back; else boot();
+        const j = await api('/api/login', { method: 'POST', body: f });
+        if (j.token) return afterLogin(j);
+        store.set('hu_email', f.email);
+        if (j.devLink) console.log('Link de acceso (modo local):', j.devLink);
+        loginView(null, f.email);
       } catch (err) { loginView(err.message); }
     };
   }
 
-  // ---------- listado ----------
+  // ---------- listado: Mis proyectos / Compartidos conmigo / Todo el equipo ----------
+  const who = e => (e || '').split('@')[0].split(/[._-]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
   async function listView() {
-    $('#who').innerHTML = `${esc(me.name)} <button class="btn sm ghost" id="logout">Salir</button>`;
+    $('#who').innerHTML = `${esc(me.name)}${me.leader ? ' <span class="chip">Líder</span>' : ''} <button class="btn sm ghost" id="logout">Salir</button>`;
     $('#logout').onclick = () => { store.set('hu_token', null); boot(); };
+    const tab = store.get('hu_folder') || 'mine';
     $('#app').innerHTML = `<h1>Planes de implementación</h1><p class="lead">Creá el plan, compartí el link con el cliente y actualizalo desde la misma página: vos ves los controles de edición, el cliente no.</p>
       <div class="row" style="margin-bottom:16px"><button class="btn" id="new">＋ Nuevo plan</button><input class="input" id="q" placeholder="Buscar cliente…" style="max-width:260px"></div>
+      <nav class="folders" id="folders"></nav>
       <div id="list"><div class="muted">Cargando…</div></div>`;
     $('#new').onclick = () => wizard();
-    let plans = [];
-    try { plans = (await api('/api/plans')).plans; } catch (e) { if (e.status === 401) return loginView(); $('#list').innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
-    const draw = () => {
-      const q = ($('#q').value || '').toLowerCase();
-      const list = plans.filter(p => p.client_name.toLowerCase().includes(q));
-      $('#list').innerHTML = list.length ? `<div class="plans">${list.map(p => `
+    let res;
+    try { res = await api('/api/plans'); } catch (e) { if (e.status === 401) return loginView(); $('#list').innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+    const folders = [['mine', '📁 Mis proyectos', res.mine], ['shared', '🤝 Compartidos conmigo', res.shared]];
+    if (res.leader) folders.push(['team', '👥 Todo el equipo', res.team]);
+    let cur = folders.find(f => f[0] === tab) ? tab : 'mine';
+    const until = d => d ? ` hasta el ${new Date(d).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}` : '';
+    const cardHtml = (p, kind) => `
         <div class="pcard"><div class="stripe" style="background:${esc(p.summary.brandColor || '#496be3')}"></div>
           <h3>${esc(p.client_name)}</h3>
-          <div class="meta">${p.summary.golive ? `Go-live: ${D.long(p.summary.golive)}` : 'Sin fecha de go-live'}${p.summary.owner ? ` · ${esc(p.summary.owner)}` : ''}</div>
+          ${kind === 'shared' ? `<div class="sharetag">Compartido por ${esc(who(p.owner_email))} · ${p.share.role === 'view' ? 'solo ver' : 'puede editar'}${until(p.share.expires_at)}</div>` : ''}
+          <div class="meta">${p.summary.golive ? `Go-live: ${D.long(p.summary.golive)}` : 'Sin fecha de go-live'}${kind !== 'mine' && p.summary.owner ? ` · ${esc(p.summary.owner)}` : ''}</div>
           <div class="prog"><span style="width:${p.summary.progress}%"></span></div>
           <div class="meta">${p.summary.progress}% completado · actualizado ${new Date(p.updated_at).toLocaleDateString('es-AR')}</div>
-          <div class="acts"><a class="btn sm" href="/p/${encodeURIComponent(p.id)}">Abrir</a><button class="btn sm ghost" data-copy="${esc(p.id)}">🔗 Link cliente</button><button class="btn sm quiet" data-dup="${esc(p.id)}" data-name="${esc(p.client_name)}">Duplicar</button></div>
-        </div>`).join('')}</div>` : `<div class="empty">${plans.length ? 'No hay planes que coincidan.' : 'Todavía no hay planes. Creá el primero con “Nuevo plan”.'}</div>`;
+          <div class="acts"><a class="btn sm" href="/p/${encodeURIComponent(p.id)}">Abrir</a><button class="btn sm ghost" data-copy="${esc(p.id)}">🔗 Link cliente</button>${kind === 'mine' ? `<button class="btn sm quiet" data-dup="${esc(p.id)}" data-name="${esc(p.client_name)}">Duplicar</button>` : ''}</div>
+        </div>`;
+    const draw = () => {
+      $('#folders').innerHTML = folders.map(([k, l, arr]) => `<button class="${k === cur ? 'on' : ''}" data-folder="${k}">${l} <span class="n">${arr.length}</span></button>`).join('');
+      document.querySelectorAll('[data-folder]').forEach(b => b.onclick = () => { cur = b.dataset.folder; store.set('hu_folder', cur); draw(); });
+      const q = ($('#q').value || '').toLowerCase();
+      const arr = folders.find(f => f[0] === cur)[2];
+      const list = arr.filter(p => p.client_name.toLowerCase().includes(q) || (p.owner_email || '').includes(q));
+      const empty = { mine: 'Todavía no tenés planes. Creá el primero con “Nuevo plan”.', shared: 'Nadie te compartió planes por ahora. Cuando un compañero te comparta uno, aparece acá, separado de los tuyos.', team: 'No hay planes de otras personas.' }[cur];
+      let html;
+      if (!list.length) html = `<div class="empty">${arr.length ? 'No hay planes que coincidan.' : empty}</div>`;
+      else if (cur === 'team') {
+        const by = new Map(); list.forEach(p => { const k = p.owner_email || 'sin responsable'; if (!by.has(k)) by.set(k, []); by.get(k).push(p); });
+        html = [...by].sort((a, b) => a[0].localeCompare(b[0])).map(([o, ps]) => `<h3 class="owner-h">${esc(who(o) || o)} <span class="muted">· ${ps.length} ${ps.length === 1 ? 'plan' : 'planes'}</span></h3><div class="plans">${ps.map(p => cardHtml(p, 'team')).join('')}</div>`).join('');
+      } else html = `<div class="plans">${list.map(p => cardHtml(p, cur)).join('')}</div>`;
+      $('#list').innerHTML = html;
       document.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => { const u = `${location.origin}/p/${b.dataset.copy}`; navigator.clipboard?.writeText(u).then(() => toast('Link copiado'), () => prompt('Link del cliente', u)); });
       document.querySelectorAll('[data-dup]').forEach(b => b.onclick = async () => {
         const name = prompt('Nombre del cliente para la copia:', b.dataset.name + ' (copia)'); if (!name) return;
@@ -175,7 +210,14 @@
   }
 
   async function boot() {
-    try { const j = await api('/api/me'); me = j.user; } catch { me = null; }
+    const qs = new URLSearchParams(location.search);
+    const back = qs.get('volver'); if (back) store.set('hu_back', back);
+    try { const j = await api('/api/me'); me = j.user; cfg = j.config || {}; } catch { me = null; }
+    const magic = qs.get('acceso');
+    if (magic) {
+      history.replaceState(null, '', '/');
+      try { return afterLogin(await api('/api/login', { method: 'POST', body: { magic } })); } catch (e) { return loginView(e.message); }
+    }
     if (!me) return loginView();
     listView();
   }
