@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { json, readBody, requireUser, methodNotAllowed } from './_lib/http.js';
-import { listPlans, createPlan, getPlan } from './_lib/db.js';
+import { listPlansFor, createPlan, getPlan, accessFor } from './_lib/db.js';
 
 export function newId(name) {
   const slug = String(name || 'cliente').normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -11,15 +11,16 @@ export function newId(name) {
 export default async function handler(req, res) {
   const user = requireUser(req, res); if (!user) return;
   try {
-    if (req.method === 'GET') return json(res, 200, { plans: await listPlans() });
+    if (req.method === 'GET') return json(res, 200, { ...(await listPlansFor(user)), leader: user.leader });
     if (req.method === 'POST') {
       const body = await readBody(req);
       let data = body.data;
       if (body.duplicateOf) {
         const src = await getPlan(body.duplicateOf);
-        if (!src) return json(res, 404, { error: 'Plan original no encontrado' });
+        if (!src || !(await accessFor(src, user))) return json(res, 404, { error: 'Plan original no encontrado' });
         data = structuredClone(src.data);
         data.client = { ...data.client, name: body.name || `${data.client?.name || ''} (copia)` };
+        data.humand = { ...(data.humand || {}), name: user.name, email: user.email };
       }
       if (!data?.client?.name) return json(res, 400, { error: 'Falta el nombre del cliente' });
       data.humand = data.humand?.name ? data.humand : { name: user.name, email: user.email };

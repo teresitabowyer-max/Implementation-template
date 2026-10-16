@@ -1,5 +1,5 @@
 import { json, readBody, query, requireUser, methodNotAllowed } from './_lib/http.js';
-import { getPlan, listReminders, createReminder, deleteReminder } from './_lib/db.js';
+import { getPlan, listReminders, createReminder, deleteReminder, accessFor, canEdit } from './_lib/db.js';
 import { sendMail, reminderHtml, pendingTasks } from './_lib/mail.js';
 
 const list = v => (Array.isArray(v) ? v : String(v || '').split(/[,;\s]+/)).map(s => s.trim()).filter(Boolean);
@@ -8,18 +8,17 @@ export default async function handler(req, res) {
   const user = requireUser(req, res); if (!user) return;
   const q = query(req);
   try {
-    if (req.method === 'GET') {
-      if (!q.plan) return json(res, 400, { error: 'Falta plan' });
-      return json(res, 200, { reminders: await listReminders(q.plan) });
-    }
+    const b = req.method === 'POST' ? await readBody(req) : {};
+    const plan = await getPlan(q.plan || b.plan);
+    const access = await accessFor(plan, user);
+    if (!plan || !access) return json(res, 404, { error: 'Plan no encontrado' });
+    if (req.method === 'GET') return json(res, 200, { reminders: await listReminders(plan.id) });
+    if (!canEdit(access)) return json(res, 403, { error: 'No tenés permiso para editar este plan.' });
     if (req.method === 'DELETE') {
-      await deleteReminder(q.id, q.plan);
+      await deleteReminder(q.id, plan.id);
       return json(res, 200, { ok: true });
     }
     if (req.method === 'POST') {
-      const b = await readBody(req);
-      const plan = await getPlan(b.plan);
-      if (!plan) return json(res, 404, { error: 'Plan no encontrado' });
       const to = list(b.to), cc = list(b.cc);
       if (!to.length) return json(res, 400, { error: 'Agregá al menos un destinatario' });
       const taskIds = b.taskIds?.length ? b.taskIds : null;
