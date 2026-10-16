@@ -25,6 +25,12 @@
   .prog { height: 6px; background: var(--n-100); border-radius: 99px; overflow: hidden; }
   .prog span { display: block; height: 100%; background: var(--ok-600); }
   .pcard .acts { display: flex; gap: 6px; margin-top: 4px; }
+  .folders { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; flex-wrap: wrap; }
+  .folders button { border: 0; background: none; padding: 10px 14px; font: inherit; font-weight: 600; font-size: 14px; color: var(--text-3); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .folders button.on { color: var(--hu-700, #213478); border-bottom-color: var(--hu-500); }
+  .folders .n { background: var(--n-100); color: var(--text-2); border-radius: 99px; padding: 1px 7px; font-size: 11px; margin-left: 4px; }
+  .sharetag { align-self: flex-start; font-size: 11px; font-weight: 600; background: var(--warn-100); color: var(--warn-700); padding: 3px 8px; border-radius: 99px; }
+  .owner-h { font-size: 15px; margin: 20px 0 10px; }
   .login { max-width: 420px; margin: 64px auto; }
   .steps { display: flex; gap: 8px; margin-bottom: 8px; }
   .steps span { flex: 1; height: 4px; border-radius: 99px; background: var(--n-150); }
