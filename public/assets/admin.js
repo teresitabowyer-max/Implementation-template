@@ -64,7 +64,7 @@
     $('#logout').onclick = () => { store.set('hu_token', null); boot(); };
     const tab = store.get('hu_folder') || 'mine';
     $('#app').innerHTML = `<h1>Planes de implementación</h1><p class="lead">Creá el plan, compartí el link con el cliente y actualizalo desde la misma página: vos ves los controles de edición, el cliente no.</p>
-      <div class="row" style="margin-bottom:16px"><button class="btn" id="new">＋ Nuevo plan</button><input class="input" id="q" placeholder="Buscar cliente…" style="max-width:260px"></div>
+      <div class="row" style="margin-bottom:16px"><button class="btn" id="new">＋ Nuevo plan</button><a class="btn ghost" href="/hubspot" title="Instalá el botón para crear planes desde un deal de HubSpot">🟠 Desde HubSpot</a><input class="input" id="q" placeholder="Buscar cliente…" style="max-width:260px"><label class="row" style="gap:6px;font-size:13px"><input type="checkbox" id="onlyrl"> 🚩 Solo redlist</label></div>
       <nav class="folders" id="folders"></nav>
       <div id="list"><div class="muted">Cargando…</div></div>`;
     $('#new').onclick = () => wizard();
@@ -76,7 +76,8 @@
     const until = d => d ? ` hasta el ${new Date(d).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}` : '';
     const cardHtml = (p, kind) => `
         <div class="pcard"><div class="stripe" style="background:${esc(p.summary.brandColor || '#496be3')}"></div>
-          <h3>${esc(p.client_name)}</h3>
+          <h3>${esc(p.client_name)}${p.summary.redlist ? ` <span class="rl-chip" title="${esc(p.summary.redlistReason || 'En redlist')}">🚩 Redlist</span>` : ''}</h3>
+          ${p.summary.stage || Number(p.summary.pilot) > 0 ? `<div class="meta">${p.summary.stage ? `Deal: ${esc(p.summary.stage)}` : ''}${Number(p.summary.pilot) > 0 ? ` · Piloto ${esc(p.summary.pilot)} m` : ''}</div>` : ''}
           ${kind === 'shared' ? `<div class="sharetag">Compartido por ${esc(who(p.owner_email))} · ${p.share.role === 'view' ? 'solo ver' : 'puede editar'}${until(p.share.expires_at)}</div>` : ''}
           <div class="meta">${p.summary.golive ? `Go-live: ${D.long(p.summary.golive)}` : 'Sin fecha de go-live'}${kind !== 'mine' && p.summary.owner ? ` · ${esc(p.summary.owner)}` : ''}</div>
           <div class="prog"><span style="width:${p.summary.progress}%"></span></div>
@@ -88,7 +89,8 @@
       document.querySelectorAll('[data-folder]').forEach(b => b.onclick = () => { cur = b.dataset.folder; store.set('hu_folder', cur); draw(); });
       const q = ($('#q').value || '').toLowerCase();
       const arr = folders.find(f => f[0] === cur)[2];
-      const list = arr.filter(p => p.client_name.toLowerCase().includes(q) || (p.owner_email || '').includes(q));
+      const onlyRl = $('#onlyrl')?.checked;
+      const list = arr.filter(p => (p.client_name.toLowerCase().includes(q) || (p.owner_email || '').includes(q)) && (!onlyRl || p.summary.redlist));
       const empty = { mine: 'Todavía no tenés planes. Creá el primero con “Nuevo plan”.', shared: 'Nadie te compartió planes por ahora. Cuando un compañero te comparta uno, aparece acá, separado de los tuyos.', team: 'No hay planes de otras personas.' }[cur];
       let html;
       if (!list.length) html = `<div class="empty">${arr.length ? 'No hay planes que coincidan.' : empty}</div>`;
@@ -103,7 +105,7 @@
         const j = await api('/api/plans', { method: 'POST', body: { duplicateOf: b.dataset.dup, name } }); location.href = `/p/${j.plan.id}`;
       });
     };
-    $('#q').oninput = draw; draw();
+    $('#q').oninput = draw; $('#onlyrl').onchange = draw; draw();
   }
 
   // ---------- logo → color de marca ----------
@@ -131,10 +133,45 @@
   }
 
   // ---------- nuevo plan ----------
-  function wizard() {
+  // ---------- importación desde HubSpot (botón de favoritos) ----------
+  const HS_KEYWORDS = {
+    desempeno: /desempe|performance|evaluaci[oó]n de (desempe|competencia)|successfactors/i, objetivos: /objetivo|okr|\bgoals?\b/i,
+    vacaciones: /vacaci|licencia|ausencia|time ?off/i, documentos: /legajo|recibo|documentos? personal/i, onboarding: /onboarding|inducci/i,
+    asistencia: /asistencia|fichaje|ficha(r|da)|control horario|time ?tracking|turnos/i, reconocimientos: /reconocim|kudos/i, px: /clima|engagement|people experience/i,
+    encuestas: /encuesta/i, muro: /\bmuro\b|comunicaci[oó]n interna|\bfeed\b/i, chats: /\bchats?\b/i, organigrama: /organigrama/i,
+    capacitacion: /capacitaci|learning|cursos?\b|formaci[oó]n/i, reclutamiento: /reclutam|\bats\b|selecci[oó]n de personal|b[uú]squedas/i,
+    servicios: /mesa de ayuda|service management|tickets?\b|gesti[oó]n de servicios/i, formularios: /formulario/i, eventos: /\beventos?\b/i,
+    librerias: /librer[ií]a|base de conocimiento|knowledge/i, noticias: /noticias|newsletter/i,
+  };
+  const dmyToIso = s => { const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(s || '').trim()); return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : ''; };
+  const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  const countryCode = name => { const n = norm(name); const hit = COUNTRIES.find(([k, v]) => norm(v) === n || k.toLowerCase() === n); return hit ? hit[0] : ''; };
+  function readHubspotHash() {
+    const m = /#hs=([\w-]+)/.exec(location.hash); if (!m) return null;
+    try { const b = m[1].replace(/-/g, '+').replace(/_/g, '/'); return JSON.parse(decodeURIComponent(escape(atob(b + '==='.slice((b.length + 3) % 4))))); } catch { return null; }
+  }
+
+  function wizard(hs) {
     const today = D.today();
     const w = { step: 1, name: '', logo: '', color: '', country: 'AR', start: D.add(D.monday(today), 7), golive: D.add(D.monday(today), 7 + 70), stages: {}, integrations: [], contacts: [] };
     MODULES.forEach(m => w.stages[m.key] = 'off');
+    if (hs) {
+      w.hs = hs; w.name = hs.name || ''; w.countryDetected = hs.country || '';
+      w.country = countryCode(hs.country) || 'AR'; w.countryOk = false;
+      const st0 = dmyToIso(hs.implDate), gl0 = dmyToIso(hs.launch);
+      if (st0) w.start = st0; if (gl0 && gl0 > w.start) w.golive = gl0;
+      w.suggested = Object.keys(HS_KEYWORDS).filter(k => MODULES.some(m => m.key === k) && HS_KEYWORDS[k].test(hs.kickoff || ''));
+      w.suggested.forEach(k => { w.stages[k] = 'e1'; });
+      if (hs.integrations) w.integrations.push({ name: hs.integrations, desc: hs.intModules || '' });
+    }
+    const hsBox = () => {
+      const h = w.hs; if (!h) return '';
+      const pilot = Number(h.pilot) > 0 ? `Sí · ${h.pilot} ${Number(h.pilot) === 1 ? 'mes' : 'meses'}` : 'No';
+      const items = [['Etapa del deal', h.stage], ['CX Stage', h.cxStage], ['Piloto', pilot], ['Account Executive', h.ae], ['Onboarding Leader', h.leader], ['Usuarios', h.users], ['Add-ons', h.addons], ['Herramientas de RR. HH.', h.hrTools]].filter(x => x[1]);
+      return `<div class="hs-box"><div class="row" style="justify-content:space-between"><b>🟠 Datos importados de HubSpot</b><a href="${esc(h.url)}" target="_blank" rel="noopener" style="font-size:12px">Ver deal →</a></div>
+        <div class="hs-grid">${items.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div>
+        ${h.kickoff ? `<details><summary>Información del kick-off (cargada por el AE)</summary><div class="hs-kick">${esc(h.kickoff)}</div></details>` : '<div class="muted" style="font-size:12px">El deal no tiene información del kick-off cargada.</div>'}</div>`;
+    };
     const draw = () => {
       $('#app').innerHTML = `<div style="max-width:760px;margin:32px auto"><div class="card" style="display:flex;flex-direction:column;gap:16px">
         <div class="steps"><span class="on"></span><span class="${w.step >= 2 ? 'on' : ''}"></span><span class="${w.step >= 3 ? 'on' : ''}"></span></div>
@@ -143,7 +180,7 @@
       </div></div>`;
       bind();
     };
-    const step1 = () => `<h2 style="font-size:20px">Datos del cliente</h2>
+    const step1 = () => `<h2 style="font-size:20px">Datos del cliente</h2>${hsBox()}
       <label class="field"><span>Nombre de la empresa</span><input class="input" id="w-name" value="${esc(w.name)}" placeholder="Ej.: Estafeta"></label>
       <label class="field"><span>Logo (opcional) · si no lo cargás se muestra el nombre</span><input type="file" class="input" id="w-logo" accept="image/*"></label>
       <div class="logo-prev">${w.logo ? `<img src="${w.logo}" alt="">` : `<b style="font-size:20px;color:${esc(w.color || '#496be3')}">${esc(w.name || 'Nombre de la empresa')}</b>`}
@@ -152,11 +189,11 @@
         <label class="field"><span>País (feriados)</span><select class="input" id="w-country">${COUNTRIES.map(([k, v]) => `<option value="${k}" ${w.country === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
         <label class="field"><span>Inicio de implementación</span><input type="date" class="input" id="w-start" value="${w.start}"></label>
         <label class="field"><span>Go-live previsto</span><input type="date" class="input" id="w-golive" value="${w.golive}"></label>
-      </div>`;
+      </div>${w.hs ? `<label class="switch hs-confirm ${w.countryOk ? 'ok' : ''}"><input type="checkbox" id="w-country-ok" ${w.countryOk ? 'checked' : ''}> <span>Confirmo el país${w.countryDetected ? ` (HubSpot dice: <b>${esc(w.countryDetected)}</b>${countryCode(w.countryDetected) ? '' : ' — no está en la lista, elegilo arriba'})` : ' (HubSpot no lo informa, elegilo arriba)'}</span></label>` : ''}`;
     const step2 = () => `<h2 style="font-size:20px">Módulos</h2>
       <p class="muted" style="font-size:13px">Etapa 1 entra al cronograma (escalonado automáticamente) · Etapa 2 queda como post-lanzamiento. Después podés reordenar y mover todo desde el Gantt.</p>
       <div class="row"><button class="btn sm ghost" id="all1">Todos a Etapa 1</button><button class="btn sm ghost" id="none">Ninguno</button></div>
-      <div class="modgrid">${CATS.map(c => `<div class="cat">${esc(c)}</div>${MODULES.filter(m => m.cat === c).map(m => `<div class="mod"><span>${esc(m.name)}</span><span class="seg">${[['e1', 'Etapa 1'], ['e2', 'Etapa 2'], ['off', '—']].map(([k, l]) => `<button class="${k} ${w.stages[m.key] === k ? 'on' : ''}" data-k="${m.key}" data-v="${k}">${l}</button>`).join('')}</span></div>`).join('')}`).join('')}</div>`;
+      <div class="modgrid">${CATS.map(c => `<div class="cat">${esc(c)}</div>${MODULES.filter(m => m.cat === c).map(m => `<div class="mod"><span>${esc(m.name)}${(w.suggested || []).includes(m.key) ? ' <span class="sug" title="Mencionado en el kick-off de HubSpot">kick-off</span>' : ''}</span><span class="seg">${[['e1', 'Etapa 1'], ['e2', 'Etapa 2'], ['off', '—']].map(([k, l]) => `<button class="${k} ${w.stages[m.key] === k ? 'on' : ''}" data-k="${m.key}" data-v="${k}">${l}</button>`).join('')}</span></div>`).join('')}`).join('')}</div>`;
     const step3 = () => `<h2 style="font-size:20px">Integraciones y contactos</h2>
       <p class="muted" style="font-size:13px">¿El cliente integra algún sistema (SAP, Workday, nómina, SSO…)? Corre en paralelo a los módulos.</p>
       <div id="ints" style="display:flex;flex-direction:column;gap:6px">${w.integrations.map((it, i) => `<div class="row" style="gap:6px"><input class="input" data-i="${i}" data-f="name" value="${esc(it.name)}" placeholder="Sistema (ej.: SAP)" style="flex:1"><input class="input" data-i="${i}" data-f="desc" value="${esc(it.desc)}" placeholder="Qué se integra (ej.: altas, bajas y estructura)" style="flex:2"><button class="icon-btn" data-rmi="${i}">✕</button></div>`).join('')}</div>
@@ -165,7 +202,7 @@
       <div id="cts" style="display:flex;flex-direction:column;gap:6px">${w.contacts.map((c, i) => `<div class="row" style="gap:6px"><input class="input" data-c="${i}" data-f="name" value="${esc(c.name)}" placeholder="Nombre" style="flex:1"><input class="input" data-c="${i}" data-f="email" value="${esc(c.email)}" placeholder="mail" style="flex:1.4"><input class="input" data-c="${i}" data-f="role" value="${esc(c.role)}" placeholder="Rol" style="flex:.8"><button class="icon-btn" data-rmc="${i}">✕</button></div>`).join('')}</div>
       <button class="btn sm ghost" id="addc" style="align-self:flex-start">＋ Agregar contacto</button>`;
     const read = () => {
-      if (w.step === 1) { w.name = $('#w-name').value.trim(); w.country = $('#w-country').value; w.start = $('#w-start').value; w.golive = $('#w-golive').value; w.color = $('#w-color').value; }
+      if (w.step === 1) { if ($('#w-country-ok')) w.countryOk = $('#w-country-ok').checked; w.name = $('#w-name').value.trim(); w.country = $('#w-country').value; w.start = $('#w-start').value; w.golive = $('#w-golive').value; w.color = $('#w-color').value; }
       if (w.step === 3) {
         document.querySelectorAll('[data-i]').forEach(i => w.integrations[i.dataset.i][i.dataset.f] = i.value.trim());
         document.querySelectorAll('[data-c]').forEach(i => w.contacts[i.dataset.c][i.dataset.f] = i.value.trim());
@@ -175,7 +212,7 @@
       $('#back').onclick = () => { read(); if (w.step === 1) return listView(); w.step--; draw(); };
       $('#next').onclick = async () => {
         read();
-        if (w.step === 1) { if (!w.name) return $('#w-name').focus(); if (!w.start || !w.golive || w.golive <= w.start) return alert('Revisá las fechas: el go-live tiene que ser posterior al inicio.'); }
+        if (w.step === 1) { if (!w.name) return $('#w-name').focus(); if (w.hs && !w.countryOk) { alert('Confirmá el país del cliente antes de seguir (define los feriados del cronograma).'); return $('#w-country-ok').focus(); } if (!w.start || !w.golive || w.golive <= w.start) return alert('Revisá las fechas: el go-live tiene que ser posterior al inicio.'); }
         if (w.step === 2 && !Object.values(w.stages).includes('e1')) return alert('Elegí al menos un módulo para la Etapa 1.');
         if (w.step < 3) { w.step++; return draw(); }
         const data = buildPlan({
@@ -185,6 +222,7 @@
           stage2Keys: MODULES.filter(m => w.stages[m.key] === 'e2').map(m => m.key),
           integrations: w.integrations.filter(i => i.name),
         });
+        if (w.hs) data.hubspot = { ...w.hs, countryConfirmed: w.country, importedAt: new Date().toISOString(), importedBy: me.email };
         $('#next').disabled = true;
         try { const j = await api('/api/plans', { method: 'POST', body: { data } }); location.href = `/p/${j.plan.id}`; }
         catch (e) { $('#next').disabled = false; alert(e.message); }
@@ -211,6 +249,8 @@
 
   async function boot() {
     const qs = new URLSearchParams(location.search);
+    const hs = readHubspotHash();
+    if (hs) { store.set('hu_hs', JSON.stringify(hs)); history.replaceState(null, '', location.pathname + location.search); }
     const back = qs.get('volver'); if (back) store.set('hu_back', back);
     try { const j = await api('/api/me'); me = j.user; cfg = j.config || {}; } catch { me = null; }
     const magic = qs.get('acceso');
@@ -219,6 +259,8 @@
       try { return afterLogin(await api('/api/login', { method: 'POST', body: { magic } })); } catch (e) { return loginView(e.message); }
     }
     if (!me) return loginView();
+    let pending = null; try { pending = JSON.parse(store.get('hu_hs') || 'null'); } catch { } store.set('hu_hs', null);
+    if (pending) return wizard(pending);
     listView();
   }
   boot();

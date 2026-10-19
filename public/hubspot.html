@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Botón HubSpot · Planes de implementación</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;600&display=swap">
+<link rel="stylesheet" href="/assets/app.css">
+<style>
+  body { background: var(--n-50, #f5f6f8); }
+  .box { max-width: 680px; margin: 48px auto; background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 32px; }
+  h1 { font-size: 22px; margin-bottom: 6px; }
+  ol { margin: 18px 0 0 20px; line-height: 1.7; color: var(--text-2); }
+  .bm { display: inline-flex; align-items: center; gap: 8px; margin: 22px 0 8px; padding: 12px 20px; border-radius: 10px; background: #ff7a59; color: #fff; font-weight: 600; text-decoration: none; cursor: grab; box-shadow: 0 2px 8px rgba(255,122,89,.35); }
+  .hint { font-size: 12px; color: var(--text-3); }
+  .what { margin-top: 22px; font-size: 13px; color: var(--text-2); background: var(--n-50, #f5f6f8); border-radius: 10px; padding: 12px 16px; }
+</style>
+</head>
+<body>
+<div class="box">
+  <a href="/" style="font-size:13px;color:var(--hu-500);text-decoration:none">← Volver a mis planes</a>
+  <h1 style="margin-top:12px">Crear un plan desde HubSpot</h1>
+  <p class="muted">Un botón para tu barra de favoritos: lo tocás estando en un deal de HubSpot y abre el generador con los datos del deal ya cargados. No usa la API de HubSpot: lee lo que ya ves en pantalla con tu propio usuario.</p>
+  <a class="bm" id="bm" href="#">🟠 Plan desde HubSpot</a>
+  <div class="hint">↑ Arrastrá este botón a la barra de favoritos de Chrome (si no la ves: Cmd/Ctrl + Shift + B).</div>
+  <ol>
+    <li>Abrí el deal del cliente en HubSpot.</li>
+    <li>Tocá <b>🟠 Plan desde HubSpot</b> en tu barra de favoritos.</li>
+    <li>Se abre una pestaña con el plan nuevo precargado: revisá y confirmá el país, los módulos y las fechas.</li>
+  </ol>
+  <div class="what"><b>Qué trae del deal:</b> nombre de la empresa, país (Main Country), etapa del deal, CX Stage, piloto (meses), Account Executive, Onboarding Leader, usuarios, fecha de implementación y de lanzamiento tentativo, add-ons, integraciones, herramientas de RR. HH. y la información del kick-off ("Deal information for Onboarding"). Con el kick-off sugiere los módulos a implementar.</div>
+</div>
+<script>
+(function () {
+  var src = function () {
+    var BASE = '__BASE__';
+    if (!/hubspot\.com$/.test(location.hostname)) { alert('Abrí un deal de HubSpot y tocá el botón de nuevo.'); return; }
+    var txt = function (s) { return (s || '').trim(); };
+    var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+    (async function () {
+      var SECTIONS = ['Account Executives for CX', 'Contract', 'Onboarding', 'About this deal', 'Deal information for Success'];
+      document.querySelectorAll('button,[role=button]').forEach(function (b) { if (SECTIONS.indexOf(txt(b.innerText)) >= 0 && b.getAttribute('aria-expanded') === 'false') b.click(); });
+      await sleep(900);
+      document.querySelectorAll('button,a,[role=button]').forEach(function (b) { if (/^(See more|Ver más)$/i.test(txt(b.innerText))) b.click(); });
+      await sleep(700);
+      var L = document.body.innerText.split('\n').map(txt).filter(Boolean);
+      var get = function () { for (var k = 0; k < arguments.length; k++) { var n = arguments[k].toLowerCase(); var i = L.findIndex(function (l) { return l.replace(/:$/, '').toLowerCase() === n; }); if (i >= 0) { var v = L[i + 1]; if (v && v !== '--') return v; } } return ''; };
+      var field = function (label) {
+        var leaf = Array.prototype.find.call(document.querySelectorAll('span,div,label,dt,p'), function (e) { return e.children.length === 0 && txt(e.textContent) === label; });
+        var p = leaf, n = 0;
+        while (p && n < 10) { p = p.parentElement; n++; var t = txt(p && p.innerText); if (t && t !== label && t.indexOf(label) === 0) return txt(t.slice(label.length).replace(/\n?(See less|Ver menos|See more|Ver más)\s*$/i, '')); }
+        return '';
+      };
+      var kick = field('Deal information for Onboarding');
+      var d = { v: 1, url: location.origin + location.pathname, name: txt(document.title).replace(/\s*[|·-]\s*HubSpot.*$/i, ''),
+        stage: get('Deal Stage'), cxStage: get('CX Stage'), country: get('Main Country'), pilot: get('Duration of the pilot/bonus (in months)'),
+        ae: get('Account Executive'), leader: get('Onboarding Leader'), users: get('Users', 'Users by contract'),
+        implDate: get('Implementation date'), launch: get('Tentative launch date'), integrations: get('Integrations System'), intModules: get('Integration Modules'),
+        hrTools: get('HR Tools in Use'), addons: get('Add-ons'), community: get('Community Name'), kickoff: kick.slice(0, 6000) };
+      var s = btoa(unescape(encodeURIComponent(JSON.stringify(d)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      window.open(BASE + '/#hs=' + s, '_blank');
+    })();
+  };
+  var code = '(' + src.toString().replace('__BASE__', location.origin) + ')()';
+  document.getElementById('bm').href = 'javascript:' + encodeURIComponent(code);
+  document.getElementById('bm').onclick = function (e) { e.preventDefault(); alert('Arrastralo a la barra de favoritos (no hace falta hacer clic acá).'); };
+})();
+</script>
+</body>
+</html>

@@ -31,6 +31,16 @@
   .folders .n { background: var(--n-100); color: var(--text-2); border-radius: 99px; padding: 1px 7px; font-size: 11px; margin-left: 4px; }
   .sharetag { align-self: flex-start; font-size: 11px; font-weight: 600; background: var(--warn-100); color: var(--warn-700); padding: 3px 8px; border-radius: 99px; }
   .owner-h { font-size: 15px; margin: 20px 0 10px; }
+  .hs-box { border: 1px solid #ffd3c4; background: #fff7f4; border-radius: var(--r-m); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+  .hs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 14px; }
+  .hs-grid span { display: block; font-size: 11px; color: var(--text-3); }
+  .hs-box summary { cursor: pointer; font-weight: 600; }
+  .hs-kick { white-space: pre-wrap; margin-top: 8px; max-height: 220px; overflow: auto; font-size: 12px; color: var(--text-2); background: #fff; border-radius: 8px; padding: 10px; }
+  .hs-confirm { background: var(--warn-50); border: 1px solid var(--warn-100); border-radius: var(--r-m); padding: 10px 12px; font-size: 13px; }
+  .hs-confirm.ok { background: var(--ok-50, #eefaf2); border-color: var(--ok-100, #cdeed8); }
+  .sug { font-size: 10px; font-weight: 600; background: #ffe7de; color: #c2410c; border-radius: 99px; padding: 1px 6px; margin-left: 4px; }
+  .rl-chip { font-size: 11px; font-weight: 600; background: #fdecec; color: #c62828; border-radius: 99px; padding: 2px 8px; vertical-align: middle; }
+  .pcard.rl { border-color: #f5c2c2; }
   .login { max-width: 420px; margin: 64px auto; }
   .steps { display: flex; gap: 8px; margin-bottom: 8px; }
   .steps span { flex: 1; height: 4px; border-radius: 99px; background: var(--n-150); }

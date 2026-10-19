@@ -82,6 +82,10 @@ function summarize(d = {}) {
     progress: rows.length ? Math.round((done / rows.length) * 100) : 0,
     brandColor: d.client?.brandColor || null,
     hasLogo: !!d.client?.logo,
+    redlist: !!d.internal?.redlist,
+    redlistReason: d.internal?.redlistReason || '',
+    stage: d.hubspot?.stage || '',
+    pilot: d.hubspot?.pilot || '',
     owner: d.humand?.name || '',
   };
 }
@@ -208,4 +212,12 @@ export async function addActivity(planId, actor, summaries) {
 export async function listActivity(planId, limit = 200) {
   if (LOCAL) return readLocalFull().activity.filter(a => a.plan_id === planId).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, limit);
   return sb(`plan_activity?plan_id=eq.${encodeURIComponent(planId)}&select=*&order=created_at.desc&limit=${limit}`);
+}
+
+// ---------- novedades de producto sincronizadas desde Notion (sin token) ----------
+export async function syncedUpdates(since) {
+  if (LOCAL) return { items: [], syncedAt: null };
+  const rows = await sb(`product_updates?date=gte.${since}&select=id,title,module,type,date,descr,url,synced_at&order=date.desc&limit=1000`);
+  const syncedAt = rows.reduce((m, r) => (r.synced_at > m ? r.synced_at : m), '') || null;
+  return { items: rows.map(r => ({ id: r.id, title: r.title, module: r.module || '', type: r.type || 'Update', date: r.date, desc: r.descr || '', url: r.url })), syncedAt };
 }

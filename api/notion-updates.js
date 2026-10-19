@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { json, query } from './_lib/http.js';
+import { syncedUpdates } from './_lib/db.js';
 
 const TOKEN = process.env.NOTION_TOKEN;
 const DB = process.env.NOTION_UPDATES_DB_ID || '03efef8f22f74ddaa5b5839ed670a42d';
@@ -69,9 +70,13 @@ export default async function handler(req, res) {
       const all = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : [];
       items = dedupe(all.filter(i => (!modules.length || modules.includes(i.module)) && (i.date || '') >= since));
     } else {
-      return json(res, 200, { items: [], configured: false });
+      // Sin token: usamos la copia que se sincroniza una vez por semana desde Notion.
+      const { items: all, syncedAt } = await syncedUpdates(since);
+      items = dedupe(all.filter(i => !modules.length || modules.includes(i.module)));
+      res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=3600');
+      return json(res, 200, { items, configured: true, source: 'sync', syncedAt });
     }
     res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=3600');
-    json(res, 200, { items, configured: true });
+    json(res, 200, { items, configured: true, source: 'live' });
   } catch (e) { json(res, 502, { error: e.message, items: [] }); }
 }

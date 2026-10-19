@@ -116,7 +116,7 @@
     const acts = {
       preview: () => { st.preview = !st.preview; P.render(); window.scrollTo({ top: 0 }); },
       'copy-link': () => { const u = `${location.origin}/p/${st.id}`; navigator.clipboard?.writeText(u).then(() => P.toast('Link del cliente copiado. Solo puede ver, no editar.'), () => prompt('Link del cliente:', u)); },
-      config: openConfig, export: openExport, share: openShare, history: openHistory, 'add-row': openAddRow, holidays: openHolidays, 'add-integration': () => openAddRow('integration'),
+      config: openConfig, export: openExport, share: openShare, history: openHistory, redlist: openRedlist, 'add-row': openAddRow, holidays: openHolidays, 'add-integration': () => openAddRow('integration'),
       'sort-rows': () => { const order = { milestone: 0, module: 1, integration: 1, custom: 1, golive: 2 }; st.data.rows.sort((x, y) => (x.start || '').localeCompare(y.start || '') || (order[x.type] - order[y.type])); P.save(); P.render(); },
       rebase: () => { if (!confirm('Las fechas actuales pasan a ser el plan original (se borran las barras punteadas). ¿Continuar?')) return; st.data.rows.forEach(r => { r.baseStart = r.start; r.baseEnd = r.end || r.start; }); P.save(); P.render(); },
       'new-minuta': () => openMinuta(null), digest: openDigest, 'add-update': () => openUpdate(null),
@@ -506,6 +506,28 @@
     return best ? P.colorUtil.rgb2hex([best.r / best.n, best.g / best.n, best.b / best.n]) : null;
   };
 
+  // ---------- redlist (solo equipo Humand) ----------
+  function openRedlist() {
+    const it = st.data.internal || {};
+    P.openLayer(`<div class="modal" role="dialog" aria-label="Redlist" style="width:min(520px,100%)">
+      <header><h3>🚩 Redlist</h3><button class="icon-btn" data-x>✕</button></header>
+      <p class="muted" style="font-size:13px">Marcá el cliente como en riesgo. Solo lo ve el equipo de Humand (no aparece en el link del cliente ni en los exportables) y queda resaltado en la lista de planes.</p>
+      <label class="switch"><input type="checkbox" id="rl-on" ${it.redlist ? 'checked' : ''}> <span>Cliente en <b>redlist</b></span></label>
+      <label class="field"><span>Motivo</span><textarea class="input" id="rl-reason" rows="3" placeholder="Ej.: sin sponsor interno, atrasos del cliente, riesgo de churn…">${esc(it.redlistReason || '')}</textarea></label>
+      ${it.redlist && it.redlistSince ? `<p class="muted" style="font-size:12px">En redlist desde el ${new Date(it.redlistSince).toLocaleDateString('es-AR')}${it.redlistBy ? ' · marcado por ' + esc(it.redlistBy) : ''}</p>` : ''}
+      <footer><span style="flex:1"></span><button class="btn ghost" data-x>Cancelar</button><button class="btn" data-ok>Guardar</button></footer></div>`, {
+      onMount: root => {
+        root.querySelectorAll('[data-x]').forEach(b => b.onclick = P.closeLayer);
+        root.querySelector('[data-ok]').onclick = () => {
+          const on = root.querySelector('#rl-on').checked;
+          const was = !!it.redlist;
+          st.data.internal = { ...it, redlist: on, redlistReason: val(root, '#rl-reason'), redlistSince: on ? (was ? it.redlistSince : new Date().toISOString()) : null, redlistBy: on ? (was ? it.redlistBy : st.user?.email) : null };
+          P.save(true); P.closeLayer(); P.render(); P.toast(on ? 'Marcado en redlist 🚩' : 'Quitado de la redlist');
+        };
+      },
+    });
+  }
+
   // ---------- compartir con el equipo ----------
   const who = e => (e || '').split('@')[0].split(/[._-]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
   async function openShare() {
@@ -588,6 +610,7 @@
       <div id="c-contacts" style="display:flex;flex-direction:column;gap:6px">${(d.client.contacts || []).map((c, i) => `<div class="row" data-ci="${i}" style="gap:6px"><input class="input" data-ck="name" value="${esc(c.name)}" placeholder="Nombre" style="flex:1"><input class="input" data-ck="email" value="${esc(c.email)}" placeholder="mail" style="flex:1.3"><input class="input" data-ck="role" value="${esc(c.role || '')}" placeholder="Rol" style="flex:.8"><button class="icon-btn" data-rmc="${i}">✕</button></div>`).join('')}</div>
       <button class="btn ghost sm" data-addc style="align-self:flex-start">＋ Agregar contacto</button>
       <h4>Equipo Humand</h4>
+      <label class="field"><span>Link del deal en HubSpot (solo equipo Humand)</span><input class="input" id="c-hslink" placeholder="https://app.hubspot.com/contacts/…" value="${esc(d.hubspot?.url || '')}"></label>
       <div class="grid2"><label class="field"><span>Responsable de implementación</span><input class="input" id="c-hname" value="${esc(d.humand?.name || '')}"></label><label class="field"><span>Mail</span><input class="input" id="c-hmail" value="${esc(d.humand?.email || '')}"></label></div>
       <h4>Fechas</h4>
       <div class="grid3"><label class="field"><span>Inicio</span><input type="date" class="input" id="c-start" value="${d.dates.start || ''}"></label><label class="field"><span>Go-live</span><input type="date" class="input" id="c-golive" value="${d.dates.golive || ''}"></label><label class="field"><span>Emisión del documento</span><input type="date" class="input" id="c-issued" value="${d.dates.issued || ''}"></label></div>
@@ -619,6 +642,9 @@
           const country = val(root, '#c-country'); const countryChanged = country !== d.holidays.country;
           d.holidays.country = country; d.client.country = country;
           d.humand = { name: val(root, '#c-hname'), email: val(root, '#c-hmail') };
+          const hsl = val(root, '#c-hslink');
+          if (hsl && !/^https:\/\/app[\w-]*\.hubspot\.com\//.test(hsl)) { alert('El link de HubSpot tiene que empezar con https://app.hubspot.com/'); return; }
+          if (hsl || d.hubspot) d.hubspot = { ...(d.hubspot || {}), url: hsl };
           d.dates.start = val(root, '#c-start') || d.dates.start; d.dates.issued = val(root, '#c-issued') || d.dates.issued;
           const gl = val(root, '#c-golive');
           if (gl && gl !== d.dates.golive) { d.dates.golive = gl; const g = d.rows.find(r => r.type === 'golive'); if (g) { g.start = gl; g.end = gl; } }
@@ -676,7 +702,7 @@
     try {
       const get = u => fetch(u).then(r => { if (!r.ok) throw new Error(u); return r.text(); });
       const [css1, css2, j1, j2, j3, j4] = await Promise.all(['/assets/app.css', '/assets/plan.css', '/assets/catalog.js', '/assets/plan.js', '/assets/plan-views.js', '/assets/plan-edit.js'].map(get));
-      const data = structuredClone(st.data);
+      const data = structuredClone(st.data); delete data.hubspot; delete data.internal;
       data.settings = { ...data.settings, ...opts, showBaseline: true };
       if (!opts.showMinutas) data.minutas = [];
       data.rows.forEach(r => { r.notes = (r.notes || []).filter(n => n.public !== false); });

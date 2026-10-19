@@ -149,19 +149,26 @@
     st.updatesState = 'loading';
     try {
       const j = await P.api(`/api/notion-updates?days=${st.data.updates.days || 120}&modules=${encodeURIComponent([...map.keys()].join('|'))}`);
-      st.updates = j.items || []; st.updatesState = j.configured === false ? 'unconfigured' : 'done';
+      st.updates = j.items || []; st.updatesState = j.configured === false ? 'unconfigured' : 'done'; st.updatesSource = j.source; st.updatesSyncedAt = j.syncedAt;
     } catch (e) { st.updatesState = 'error'; st.updatesError = e.message; }
     if (st.tab === 'producto') P.render();
   };
 
   const statusCls = s => /no (en|disp)|no se/i.test(s) ? 'err' : /disponible/i.test(s) ? 'ok' : /desarrollo|beta/i.test(s) ? 'info' : /roadmap/i.test(s) ? 'warn' : 'accent';
 
+  // Nota (solo equipo Humand): las novedades vienen de una copia semanal; con NOTION_TOKEN serían en tiempo real.
+  const syncNote = () => {
+    if (!P.editing() || st.updatesSource !== 'sync') return '';
+    const when = st.updatesSyncedAt ? new Date(st.updatesSyncedAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' }) : 'pendiente';
+    return `<p class="sync-note no-print"><b>*</b> Novedades sincronizadas desde Notion una vez por semana (última actualización: ${esc(when)}). Para verlas en tiempo real hay que configurar el token de Notion (<code>NOTION_TOKEN</code>) en Vercel. Este aviso no lo ve el cliente.</p>`;
+  };
+
   V.producto = () => {
     const d = st.data; const ed = P.editing(); const map = notionToPlan();
     const hidden = new Set(d.updates.hidden);
     const manual = d.updates.manual || [];
     const notion = (st.updates || []).filter(u => ed || !hidden.has(u.id)).sort((x, y) => { const fx = (x.date || '') > P.today, fy = (y.date || '') > P.today; return fx !== fy ? (fx ? -1 : 1) : fx ? x.date.localeCompare(y.date) : (y.date || '').localeCompare(x.date || ''); });
-    let html = `<div class="section-title"><h2>Actualizaciones del producto</h2><span class="muted">· novedades y respuestas sobre los módulos de ${esc(d.client.name)}</span>${P.hiddenForClient('showUpdates')}
+    let html = `<div class="section-title"><h2>Actualizaciones del producto${ed && st.updatesSource === 'sync' ? '<sup class="sync-star" title="Sincronización semanal (ver nota al pie)">*</sup>' : ''}</h2><span class="muted">· novedades y respuestas sobre los módulos de ${esc(d.client.name)}</span>${P.hiddenForClient('showUpdates')}
       ${ed ? `<div class="actions no-print">
         <select class="input" style="width:auto;padding:5px 8px;font-size:12px" data-upd-days>${[60, 120, 180, 365].map(n => `<option value="${n}" ${Number(d.updates.days) === n ? 'selected' : ''}>Últimos ${n} días</option>`).join('')}</select>
         <button class="btn sm ghost" data-act="add-update">＋ Agregar novedad o respuesta</button></div>` : ''}</div>`;
@@ -180,7 +187,7 @@
         <div class="ft"><span class="chip ${future ? 'info' : 'ok'}">${future ? 'Próximamente · ' + D.short(u.date) : 'Disponible · ' + D.short(u.date)}</span>${u.type === 'Gran lanzamiento' ? '<span class="chip accent">★ Gran lanzamiento</span>' : ''}${link}</div></div>`);
     });
     if (st.updatesState === 'loading' && !cards.length) return html + '<div class="empty">Buscando novedades en Notion…</div>';
-    if (!cards.length) return html + `<div class="empty">No hay novedades recientes para los módulos de este plan.</div>`;
-    return html + `<div class="upd-grid">${cards.join('')}</div>${ed ? '<p class="muted no-print" style="font-size:12px;margin-top:10px">Fuente: Notion · Humand Product Updates. Usá 👁 para ocultar al cliente lo que no aplica.</p>' : ''}`;
+    if (!cards.length) return html + `<div class="empty">No hay novedades recientes para los módulos de este plan.</div>` + syncNote();
+    return html + `<div class="upd-grid">${cards.join('')}</div>${ed ? '<p class="muted no-print" style="font-size:12px;margin-top:10px">Fuente: Notion · Humand Product Updates. Usá 👁 para ocultar al cliente lo que no aplica.</p>' : ''}${syncNote()}`;
   };
 })();

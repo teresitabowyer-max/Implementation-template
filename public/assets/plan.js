@@ -182,7 +182,7 @@
   };
 
   P.panel = k => {
-    if (k === 'plan') return P.summaryHtml() + P.ganttSection() + (P.views ? P.views.integrations() + P.views.stage2() : '');
+    if (k === 'plan') return P.hubspotCard() + P.summaryHtml() + P.ganttSection() + (P.views ? P.views.integrations() + P.views.stage2() : '');
     if (k === 'reuniones') return P.views.reuniones();
     if (k === 'minutas') return P.views.minutas();
     if (k === 'producto') return P.views.producto();
@@ -200,6 +200,8 @@
       <span class="sp"></span>
       ${st.canEdit ? '<button class="btn ghost" data-act="preview">👁 Ver como cliente</button>' : ''}
       <button class="btn ghost" data-act="copy-link">🔗 Link del cliente</button>
+      ${st.data.hubspot?.url ? `<a class="btn ghost" href="${esc(st.data.hubspot.url)}" target="_blank" rel="noopener" title="Abrir el deal en HubSpot">🟠 HubSpot</a>` : ''}
+      ${st.canEdit ? `<button class="btn ghost ${st.data.internal?.redlist ? 'rl-on' : ''}" data-act="redlist">🚩 ${st.data.internal?.redlist ? 'En redlist' : 'Redlist'}</button>` : (st.data.internal?.redlist ? '<span class="tag rl">🚩 Redlist</span>' : '')}
       <button class="btn ghost" data-act="history">🕘 Historial</button>
       ${st.access === 'owner' ? '<button class="btn ghost" data-act="share">👥 Compartir</button>' : ''}
       ${st.canEdit ? '<button class="btn ghost" data-act="config">⚙ Configurar</button><button class="btn" data-act="export">⬇ Exportar</button>' : ''}
@@ -233,6 +235,19 @@
   };
 
   // ---------- resumen ----------
+  // Ficha del deal de HubSpot: solo la ve el equipo Humand en modo edición.
+  P.hubspotCard = () => {
+    const it = st.data.internal || {};
+    const rl = it.redlist && P.editing() ? `<div class="rl-banner no-print">🚩 <b>Cliente en redlist</b>${it.redlistReason ? ` · ${esc(it.redlistReason)}` : ''}${it.redlistSince ? `<span class="muted"> · desde el ${new Date(it.redlistSince).toLocaleDateString('es-AR')}</span>` : ''} <span class="muted" style="margin-left:auto">Solo equipo Humand</span></div>` : '';
+    const h = st.data.hubspot; if (!h || !P.editing() || (!h.stage && !h.kickoff && !h.ae)) return rl;
+    const pilot = Number(h.pilot) > 0 ? `Sí · ${h.pilot} ${Number(h.pilot) === 1 ? 'mes' : 'meses'}` : 'No';
+    const items = [['Etapa del deal', h.stage], ['Piloto', pilot], ['Account Executive', h.ae], ['Users', h.users], ['Add-ons', h.addons], ['CX Stage', h.cxStage], ['País', h.country], ['Onboarding Leader', h.leader]].filter(x => x[1]);
+    return `<details class="hs-card no-print"><summary><span>🟠 Deal de HubSpot</span>${items.slice(0, 5).map(([k, v]) => `<span class="chip">${esc(k)}: ${esc(v)}</span>`).join('')}<span class="muted" style="margin-left:auto;font-size:11px">Solo equipo Humand · importado ${h.importedAt ? new Date(h.importedAt).toLocaleDateString('es-AR') : ''}</span></summary>
+      <div class="hs-grid">${items.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('')}</div>
+      ${h.kickoff ? `<h4>Información del kick-off (AE)</h4><div class="hs-kick">${esc(h.kickoff)}</div>` : ''}
+      ${h.url ? `<a href="${esc(h.url)}" target="_blank" rel="noopener">Abrir el deal en HubSpot →</a>` : ''}</details>${rl}`;
+  };
+
   P.summaryHtml = () => {
     const d = st.data; const rows = d.rows;
     const mods = rows.filter(r => r.type === 'module');

@@ -12,8 +12,10 @@ export default async function handler(req, res) {
     if (!plan) return json(res, 404, { error: 'Plan no encontrado' });
     const access = await accessFor(plan, user);
     if (req.method === 'GET') {
+      // Lo interno (deal de HubSpot, redlist) solo lo recibe el equipo con acceso al plan.
+      const data = access ? plan.data : (({ hubspot, internal, ...rest }) => rest)(plan.data || {});
       return json(res, 200, {
-        plan: { id: plan.id, data: plan.data, updated_at: plan.updated_at, updated_by: access ? plan.updated_by : undefined, owner_email: access ? plan.owner_email : undefined },
+        plan: { id: plan.id, data, updated_at: plan.updated_at, updated_by: access ? plan.updated_by : undefined, owner_email: access ? plan.owner_email : undefined },
         canEdit: canEdit(access), access,
       });
     }

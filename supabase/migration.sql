@@ -59,3 +59,17 @@ create index if not exists plan_activity_plan_idx on public.plan_activity (plan_
 
 alter table public.plan_shares enable row level security;
 alter table public.plan_activity enable row level security;
+
+-- v4: copia semanal de "Humand Product Updates" (Notion) para usar sin NOTION_TOKEN
+create table if not exists public.product_updates (
+  id text primary key,
+  title text not null,
+  module text,
+  type text,
+  date date,
+  descr text,
+  url text,
+  synced_at timestamptz not null default now()
+);
+create index if not exists product_updates_date_idx on public.product_updates (date desc);
+alter table public.product_updates enable row level security;

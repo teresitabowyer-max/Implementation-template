@@ -233,3 +233,23 @@ body.can-edit .tabs { top: 48px; }
 .share-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-m); font-size: 13px; }
 .hist { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--n-100); font-size: 13px; }
 .hist .t { color: var(--text-3); font-variant-numeric: tabular-nums; flex-shrink: 0; width: 42px; }
+
+.sync-star { color: var(--warn-600, #de920c); font-size: .7em; margin-left: 2px; cursor: help; }
+.sync-note { margin-top: 14px; font-size: 12px; color: var(--text-2); background: var(--warn-50, #fdfaec); border: 1px solid var(--warn-100, #fcf7ce); border-radius: var(--r-m, 8px); padding: 8px 12px; }
+.sync-note b { color: var(--warn-600, #de920c); }
+.hs-card { border: 1px solid #ffd3c4; background: #fff7f4; border-radius: var(--r-l, 12px); padding: 10px 14px; margin: 20px 0 4px; font-size: 13px; }
+.hs-card summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; cursor: pointer; font-weight: 600; list-style: none; }
+.hs-card summary::-webkit-details-marker { display: none; }
+.hs-card .chip { font-weight: 400; }
+.hs-card[open] summary { margin-bottom: 10px; }
+.hs-card h4 { margin: 12px 0 6px; font-size: 13px; }
+.hs-card .hs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 14px; }
+.hs-card .hs-grid span { display: block; font-size: 11px; color: var(--text-3); }
+.hs-card .hs-kick { white-space: pre-wrap; max-height: 260px; overflow: auto; font-size: 12px; color: var(--text-2); background: #fff; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+
+.editbar .btn.rl-on { background: #c62828; border-color: #c62828; color: #fff; }
+.editbar .tag.rl { background: #c62828; color: #fff; }
+.rl-banner { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 12px 0 4px; padding: 10px 14px; border-radius: var(--r-l, 12px); background: #fdecec; border: 1px solid #f5c2c2; color: #8e1b1b; font-size: 13px; }
+.editbar .wrap { gap: 6px; }
+.editbar .btn { padding: 5px 9px; font-size: 12.5px; }
+@media (max-width: 1400px) { .editbar .tag { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .editbar .save { display: none; } }
