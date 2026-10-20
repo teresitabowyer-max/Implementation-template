@@ -57,21 +57,24 @@ const findTask = (data, minutaId, taskId) => {
 
 async function clientCheck(req, res, plan, access) {
   if (access === 'view' || access === 'leader') return json(res, 403, { error: 'Tenés acceso de solo lectura a este plan.' });
-  const { minuta, task, done } = await readBody(req);
-  if (!minuta || !task || typeof done !== 'boolean') return json(res, 400, { error: 'Datos inválidos' });
-  if (plan.data?.settings?.showMinutas === false) return json(res, 403, { error: 'Esta sección no está disponible.' });
+  const { minuta, task, row, done } = await readBody(req);
+  if (typeof done !== 'boolean' || !((minuta && task) || row)) return json(res, 400, { error: 'Datos inválidos' });
+  if (!row && plan.data?.settings?.showMinutas === false) return json(res, 403, { error: 'Esta sección no está disponible.' });
+  const key = row ? `row:${row}` : task;
   for (let i = 0; i < 4; i++) {
     const data = plan.data || {};
-    const t = findTask(data, minuta, task);
+    const t = row ? (data.rows || []).find(r => r.id === row) : findTask(data, minuta, task);
     if (!t) return json(res, 404, { error: 'La tarea ya no existe. Recargá la página.' });
     if (!!t.done === done) return json(res, 200, { ok: true, task: { done: !!t.done, doneAt: t.doneAt || null, doneBy: t.doneBy || null } });
     const at = new Date().toISOString();
+    // Solo cambia el estado de hecho/pendiente: nada de fechas, textos ni orden.
     Object.assign(t, { done, doneAt: done ? todayAR() : null, doneBy: done ? 'cliente' : null });
-    data.clientChecks = { ...(data.clientChecks || {}), [task]: { minuta, done, at } };
+    data.clientChecks = { ...(data.clientChecks || {}), [key]: row ? { row, done, at } : { minuta, done, at } };
     const out = await updatePlan(plan.id, { data, client_name: data.client?.name, expectedUpdatedAt: plan.updated_at, user: 'cliente' });
     if (out.notFound) return json(res, 404, { error: 'Plan no encontrado' });
     if (out.conflict) { plan = out.current; continue; }
-    try { await addActivity(plan.id, 'Cliente', [`${done ? 'Completó' : 'Reabrió'} la tarea «${t.text || 'tarea'}»`]); } catch (e) { console.error('historial', e.message); }
+    const name = row ? (t.label && t.label !== 'Configuración' ? `${t.name} · ${t.label}` : t.name) : t.text;
+    try { await addActivity(plan.id, 'Cliente', [`${done ? 'Completó' : 'Reabrió'} ${row ? 'la etapa' : 'la tarea'} «${name || 'tarea'}»`]); } catch (e) { console.error('historial', e.message); }
     return json(res, 200, { ok: true, task: { done, doneAt: t.doneAt, doneBy: t.doneBy } });
   }
   json(res, 409, { error: 'El plan se está actualizando. Probá de nuevo en unos segundos.' });
@@ -85,10 +88,11 @@ function mergeClientChecks(stored, incoming) {
   for (const [taskId, c] of Object.entries(sc)) {
     if (ic[taskId] && ic[taskId].at >= c.at) continue;
     ic[taskId] = c;
-    const st = findTask(stored, c.minuta, taskId), t = findTask(incoming, c.minuta, taskId);
+    const st = c.row ? (stored?.rows || []).find(r => r.id === c.row) : findTask(stored, c.minuta, taskId);
+    const t = c.row ? (incoming.rows || []).find(r => r.id === c.row) : findTask(incoming, c.minuta, taskId);
     if (!t || !st) continue;
     Object.assign(t, { done: !!st.done, doneAt: st.doneAt || null, doneBy: st.doneBy || null });
-    applied.push({ minuta: c.minuta, task: taskId, done: !!st.done, doneAt: st.doneAt || null, doneBy: st.doneBy || null });
+    applied.push({ minuta: c.minuta, task: c.row ? null : taskId, row: c.row || null, done: !!st.done, doneAt: st.doneAt || null, doneBy: st.doneBy || null });
   }
   return applied;
 }

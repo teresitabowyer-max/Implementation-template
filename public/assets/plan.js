@@ -53,11 +53,12 @@
       if (r.applied && r.applied.length) {
         // El cliente tildó tareas mientras editabas: se suman a tu versión sin pisar tus cambios.
         r.applied.forEach(a => {
-          const m = st.data.minutas.find(x => x.id === a.minuta); const t = m && m.tasks.find(x => x.id === a.task);
+          const m = a.minuta && st.data.minutas.find(x => x.id === a.minuta);
+          const t = a.row ? st.data.rows.find(x => x.id === a.row) : m && m.tasks.find(x => x.id === a.task);
           if (t) Object.assign(t, { done: a.done, doneAt: a.doneAt, doneBy: a.doneBy });
           st.data.clientChecks = st.data.clientChecks || {};
         });
-        P.toast(r.applied.length === 1 ? 'El cliente actualizó 1 tarea de las minutas' : `El cliente actualizó ${r.applied.length} tareas de las minutas`);
+        P.toast(r.applied.length === 1 ? 'El cliente marcó 1 tarea' : `El cliente marcó ${r.applied.length} tareas`);
         P.render();
       }
     } catch (e) {
@@ -298,7 +299,7 @@
 
   // ---------- Gantt ----------
   P.ganttSection = () => `
-    <div class="section-title"><h2>Cronograma de implementación</h2><span class="muted">· pasá el cursor sobre las barras para ver el detalle${P.editing() ? ' · arrastrá las barras para mover fechas y ⠿ para reordenar filas' : ''}</span></div>
+    <div class="section-title"><h2>Cronograma de implementación</h2><span class="muted">· pasá el cursor sobre las barras para ver el detalle${P.editing() ? ' · arrastrá las barras para mover fechas y ⠿ para reordenar filas' : ''}</span></div>${P.clientCanCheck() && st.data.rows.length ? '<p class="client-hint no-print">☑ Tildá cada etapa cuando la completen. El equipo de Humand lo ve al instante; las fechas las actualiza el equipo.</p>' : ''}
     <div class="gantt-card">
       <div class="gantt-scroll" id="gscroll"><div class="gantt" id="gantt">${P.ganttInner()}</div></div>
       ${P.ganttFooter()}
@@ -355,9 +356,9 @@
       return `<div class="g-row t-${r.type} ${r.done ? 'is-done' : ''}" data-row="${r.id}">
         <div class="g-left">
           ${ed ? '<span class="handle" title="Arrastrá para reordenar">⠿</span>' : ''}
-          <input type="checkbox" class="check" data-done="${r.id}" ${r.done ? 'checked' : ''} ${ed ? '' : 'disabled'} title="${r.done ? 'Completado' : ed ? 'Marcar como completado' : 'Pendiente'}">
+          <input type="checkbox" class="check" data-done="${r.id}" ${r.done ? 'checked' : ''} ${ed || P.clientCanCheck() ? '' : 'disabled'} title="${r.done ? (r.doneBy === 'cliente' ? 'Completado · marcado por el cliente' : 'Completado') : ed || P.clientCanCheck() ? 'Marcar como completado' : 'Pendiente'}">
           ${showProg ? `<span class="dot ${stt.k}" title="${esc(stt.label)}"></span>` : ''}
-          <span class="nm">${name}</span>
+          <span class="nm">${name}</span>${ed && r.done && r.doneBy === 'cliente' ? '<span class="by-client" title="Marcada por el cliente">cliente</span>' : ''}
           ${ed ? `<span class="acts"><button class="icon-btn" data-note="${r.id}" title="Agregar nota (cambio de fecha, atraso, adelanto)">＋</button><button class="icon-btn" data-editrow="${r.id}" title="Editar">✎</button></span>` : ''}
         </div>
         <div class="g-track" style="width:${days * W}px">${bars}</div>

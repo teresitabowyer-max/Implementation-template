@@ -193,19 +193,26 @@
   };
 })();
 
-// ---------- el cliente tilda sus tareas (solo eso: no cambia fechas ni textos) ----------
+// ---------- el cliente tilda sus tareas (minutas y etapas del Gantt; no cambia fechas ni textos) ----------
 document.addEventListener('change', async e => {
   const P = window.P, t = e.target;
-  if (!P || !t.dataset || !t.dataset.task || P.editing() || !P.clientCanCheck()) return;
-  const st = P.st; const [mid, tid] = t.dataset.task.split(':');
-  const m = st.data.minutas.find(x => x.id === mid); const k = m && m.tasks.find(x => x.id === tid); if (!k) return;
+  if (!P || !t.dataset || !(t.dataset.task || t.dataset.done) || P.editing() || !P.clientCanCheck()) return;
+  const st = P.st; let k, body;
+  if (t.dataset.task) {
+    const [mid, tid] = t.dataset.task.split(':');
+    const m = st.data.minutas.find(x => x.id === mid); k = m && m.tasks.find(x => x.id === tid);
+    body = { minuta: mid, task: tid };
+  } else {
+    k = st.data.rows.find(x => x.id === t.dataset.done); body = { row: t.dataset.done };
+  }
+  if (!k) return;
   const prev = { done: k.done, doneAt: k.doneAt, doneBy: k.doneBy };
   Object.assign(k, { done: t.checked, doneAt: t.checked ? P.today : null, doneBy: t.checked ? 'cliente' : null });
   P.render();
   try {
-    const r = await P.api(`/api/plan?id=${encodeURIComponent(st.id)}`, { method: 'PATCH', body: { minuta: mid, task: tid, done: k.done } });
+    const r = await P.api(`/api/plan?id=${encodeURIComponent(st.id)}`, { method: 'PATCH', body: { ...body, done: k.done } });
     if (r.task) Object.assign(k, r.task);
-    P.toast(k.done ? '¡Listo! Tarea marcada como hecha' : 'Tarea marcada como pendiente');
+    P.toast(k.done ? '¡Listo! Marcado como hecho' : 'Marcado como pendiente');
   } catch (err) { Object.assign(k, prev); P.toast(`No se pudo guardar: ${err.message}`); }
   P.render();
 });
