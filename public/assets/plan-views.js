@@ -111,6 +111,7 @@
     const done = allTasks.filter(t => t.done).length;
     let html = `<div class="section-title"><h2>Minutas y tareas</h2><span class="muted">· acuerdos de cada reunión y próximos pasos${allTasks.length ? ` · ${done}/${allTasks.length} tareas completadas` : ''}</span>${P.hiddenForClient('showMinutas')}
       ${ed ? `<div class="actions no-print"><button class="btn sm ghost" data-act="digest">✉ Resumen semanal${d.settings.digest.on ? ' · activo' : ''}</button><button class="btn sm" data-act="new-minuta">＋ Nueva minuta</button></div>` : ''}</div>`;
+    if (list.length && allTasks.length && P.clientCanCheck()) html += `<p class="client-hint no-print">☑ Marcá tus tareas a medida que las completes. El equipo de Humand lo ve al instante.</p>`;
     if (!list.length) return html + `<div class="empty">${ed ? 'Pegá la minuta de la reunión y detectamos las tareas automáticamente. Después podés programar recordatorios por mail.' : 'Todavía no hay minutas cargadas.'}</div>`;
     html += `<div style="display:flex;flex-direction:column;gap:16px">${list.map(m => `
       <article class="minuta">
@@ -127,9 +128,9 @@
     const late = !t.done && t.due && t.due < P.today;
     const rem = (st.reminders || []).filter(r => r.status === 'scheduled' && (r.task_id || '').split(',').includes(t.id));
     return `<div class="task ${t.done ? 'done' : ''}">
-      <input type="checkbox" class="check" data-task="${m.id}:${t.id}" ${t.done ? 'checked' : ''} ${ed ? '' : 'disabled'}>
+      <input type="checkbox" class="check" data-task="${m.id}:${t.id}" ${t.done ? 'checked' : ''} ${ed || P.clientCanCheck() ? '' : 'disabled'} title="${t.done ? 'Hecha' : ed || P.clientCanCheck() ? 'Marcar como hecha' : 'Pendiente'}">
       <div><div class="tt">${esc(t.text)}</div>
-        <div class="tm">${t.owner ? `<span class="chip">👤 ${esc(t.owner)}</span>` : ''}${t.due ? `<span class="chip ${late ? 'err' : t.done ? 'ok' : ''}">📅 ${D.short(t.due)}${late ? ' · vencida' : ''}</span>` : ''}${t.done && t.doneAt ? `<span class="chip ok">✓ ${D.short(t.doneAt)}</span>` : ''}${ed && rem.length ? `<span class="chip warn">🔔 ${rem.map(r => D.short(r.send_at.slice(0, 10))).join(', ')}</span>` : ''}</div></div>
+        <div class="tm">${t.owner ? `<span class="chip">👤 ${esc(t.owner)}</span>` : ''}${t.due ? `<span class="chip ${late ? 'err' : t.done ? 'ok' : ''}">📅 ${D.short(t.due)}${late ? ' · vencida' : ''}</span>` : ''}${t.done && t.doneAt ? `<span class="chip ok">✓ ${D.short(t.doneAt)}${t.doneBy === 'cliente' ? ' · marcada por el cliente' : ''}</span>` : ''}${ed && rem.length ? `<span class="chip warn">🔔 ${rem.map(r => D.short(r.send_at.slice(0, 10))).join(', ')}</span>` : ''}</div></div>
       ${ed ? `<div class="ta"><button class="icon-btn bell ${rem.length ? 'on' : ''}" data-remind="${m.id}:${t.id}" title="Recordatorio por mail">🔔</button></div>` : '<span></span>'}
     </div>`;
   };
@@ -191,3 +192,20 @@
     return html + `<div class="upd-grid">${cards.join('')}</div>${ed ? '<p class="muted no-print" style="font-size:12px;margin-top:10px">Fuente: Notion · Humand Product Updates. Usá 👁 para ocultar al cliente lo que no aplica.</p>' : ''}${syncNote()}`;
   };
 })();
+
+// ---------- el cliente tilda sus tareas (solo eso: no cambia fechas ni textos) ----------
+document.addEventListener('change', async e => {
+  const P = window.P, t = e.target;
+  if (!P || !t.dataset || !t.dataset.task || P.editing() || !P.clientCanCheck()) return;
+  const st = P.st; const [mid, tid] = t.dataset.task.split(':');
+  const m = st.data.minutas.find(x => x.id === mid); const k = m && m.tasks.find(x => x.id === tid); if (!k) return;
+  const prev = { done: k.done, doneAt: k.doneAt, doneBy: k.doneBy };
+  Object.assign(k, { done: t.checked, doneAt: t.checked ? P.today : null, doneBy: t.checked ? 'cliente' : null });
+  P.render();
+  try {
+    const r = await P.api(`/api/plan?id=${encodeURIComponent(st.id)}`, { method: 'PATCH', body: { minuta: mid, task: tid, done: k.done } });
+    if (r.task) Object.assign(k, r.task);
+    P.toast(k.done ? '¡Listo! Tarea marcada como hecha' : 'Tarea marcada como pendiente');
+  } catch (err) { Object.assign(k, prev); P.toast(`No se pudo guardar: ${err.message}`); }
+  P.render();
+});

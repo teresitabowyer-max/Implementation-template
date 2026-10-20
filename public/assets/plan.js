@@ -49,6 +49,17 @@
     try {
       const r = await P.api(`/api/plan?id=${encodeURIComponent(st.id)}`, { method: 'PUT', body: { data: st.data, expectedUpdatedAt: force ? null : st.updatedAt } });
       st.updatedAt = r.updated_at; st.saving = 'saved'; st.savedAt = new Date();
+      if (r.teamRev) st.data._teamRev = r.teamRev;
+      if (r.applied && r.applied.length) {
+        // El cliente tildó tareas mientras editabas: se suman a tu versión sin pisar tus cambios.
+        r.applied.forEach(a => {
+          const m = st.data.minutas.find(x => x.id === a.minuta); const t = m && m.tasks.find(x => x.id === a.task);
+          if (t) Object.assign(t, { done: a.done, doneAt: a.doneAt, doneBy: a.doneBy });
+          st.data.clientChecks = st.data.clientChecks || {};
+        });
+        P.toast(r.applied.length === 1 ? 'El cliente actualizó 1 tarea de las minutas' : `El cliente actualizó ${r.applied.length} tareas de las minutas`);
+        P.render();
+      }
     } catch (e) {
       if (e.status === 409) { st.conflict = e.body.plan; st.saving = 'conflict'; P.render(); return; }
       st.saving = 'error'; st.saveError = e.message;
@@ -88,6 +99,8 @@
 
   // ---------- visibilidad ----------
   P.editing = () => st.canEdit && !st.preview && !st.printing && !SNAP;
+  // El cliente (link sin sesión del equipo) solo puede tildar las tareas de las minutas.
+  P.clientCanCheck = () => !!st.id && !SNAP && !st.access && !st.preview && !st.printing;
   // ¿Se muestra una sección? En edición se ve todo; para el cliente / exportables se respetan las opciones.
   P.show = flag => {
     if (st.exportOpts) return !!st.exportOpts[flag];

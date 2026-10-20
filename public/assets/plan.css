@@ -194,6 +194,8 @@ body.can-edit .tabs { top: 48px; }
 .task .tm { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
 .task .ta { display: flex; gap: 2px; }
 .task .bell.on { color: var(--warn-600); }
+.client-hint { margin: -4px 0 12px; padding: 8px 12px; border-radius: var(--r-m); background: var(--hu-50, #eef2ff); color: var(--hu-800); font-size: 13px; }
+.task input.check:not(:disabled) { cursor: pointer; }
 .task-edit { display: grid; grid-template-columns: 1fr 140px 130px auto; gap: 6px; align-items: center; }
 @media (max-width: 699px) { .task-edit { grid-template-columns: 1fr 1fr; } }
 
