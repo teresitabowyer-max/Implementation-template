@@ -189,7 +189,7 @@ export async function listShares(planId) {
 }
 export async function upsertShare(row) {
   const r = { created_at: now(), expires_at: null, role: 'edit', ...row };
-  if (LOCAL) { const db = readLocalFull(); db.shares = db.shares.filter(sh => !(sh.plan_id === r.plan_id && sh.email === r.email)); db.shares.push(r); writeLocal(db); return r; }
+  if (LOCAL) { const db = readLocalFull(); const old = db.shares.find(sh => sh.plan_id === r.plan_id && sh.email === r.email); db.shares = db.shares.filter(sh => sh !== old); const m = { ...(old || {}), ...r }; db.shares.push(m); writeLocal(db); return m; }
   const out = await sb('plan_shares?on_conflict=plan_id,email', { method: 'POST', body: r, prefer: 'resolution=merge-duplicates,return=representation' });
   return out[0];
 }
@@ -220,4 +220,62 @@ export async function syncedUpdates(since) {
   const rows = await sb(`product_updates?date=gte.${since}&select=id,title,module,type,date,descr,url,synced_at&order=date.desc&limit=1000`);
   const syncedAt = rows.reduce((m, r) => (r.synced_at > m ? r.synced_at : m), '') || null;
   return { items: rows.map(r => ({ id: r.id, title: r.title, module: r.module || '', type: r.type || 'Update', date: r.date, desc: r.descr || '', url: r.url })), syncedAt };
+}
+
+// ---------- traspasos por vacaciones ----------
+// Un traspaso es un "compartir" marcado como handoff (con prioridad, contexto, cards y fechas).
+export async function patchShare(planId, email, patch) {
+  const p = { ...patch, updated_at: now() };
+  if (LOCAL) { const db = readLocalFull(); const sh = db.shares.find(s => s.plan_id === planId && s.email === email); if (sh) Object.assign(sh, p); writeLocal(db); return sh || null; }
+  const out = await sb(`plan_shares?plan_id=eq.${encodeURIComponent(planId)}&email=eq.${encodeURIComponent(email)}`, { method: 'PATCH', body: p, prefer: 'return=representation' });
+  return out[0] || null;
+}
+// Traspasos vigentes o terminados hace menos de `days` días, con los datos de su plan.
+export async function listHandoffs(days = 21) {
+  const since = new Date(Date.now() - days * 864e5).toISOString();
+  let shares, plans;
+  if (LOCAL) {
+    const db = readLocalFull();
+    shares = db.shares.filter(s => s.handoff && (!s.expires_at || s.expires_at >= since));
+    plans = db.plans.filter(p => !p.archived && shares.some(s => s.plan_id === p.id));
+  } else {
+    shares = await sb(`plan_shares?handoff=eq.true&or=(expires_at.is.null,expires_at.gte.${encodeURIComponent(since)})&select=*`);
+    if (!shares.length) return [];
+    const ids = [...new Set(shares.map(s => `"${s.plan_id.replace(/"/g, '')}"`))].join(',');
+    plans = await sb(`plans?id=in.(${encodeURIComponent(ids)})&archived=eq.false&select=id,client_name,owner_email,data,updated_at`);
+  }
+  const byId = new Map(plans.map(p => [p.id, p]));
+  return shares.filter(s => byId.has(s.plan_id)).map(s => ({ share: s, plan: byId.get(s.plan_id) }));
+}
+export async function getSettings(email) {
+  if (LOCAL) return (readLocalFull().settings || []).find(s => s.email === email) || null;
+  const r = await sb(`user_settings?email=eq.${encodeURIComponent(email)}&select=*`);
+  return r[0] || null;
+}
+export async function listSettings(emails) {
+  if (!emails.length) return [];
+  if (LOCAL) return (readLocalFull().settings || []).filter(s => emails.includes(s.email));
+  return sb(`user_settings?email=in.(${encodeURIComponent(emails.map(e => `"${e}"`).join(','))})&select=email,cred_user,cmb_url,cred_pass_enc,updated_at`);
+}
+export async function saveSettings(row) {
+  const r = { ...row, updated_at: now() };
+  if (LOCAL) { const db = readLocalFull(); db.settings ||= []; const i = db.settings.findIndex(s => s.email === r.email); if (i >= 0) db.settings[i] = { ...db.settings[i], ...r }; else db.settings.push(r); writeLocal(db); return; }
+  await sb('user_settings?on_conflict=email', { method: 'POST', body: r, prefer: 'resolution=merge-duplicates' });
+}
+
+// ---------- bandeja de entrada (minutas que llegan desde Fathom) ----------
+export async function pendingInbox(planId) {
+  if (LOCAL) return (readLocalFull().inbox || []).filter(x => x.plan_id === planId && !x.imported_at);
+  return sb(`plan_inbox?plan_id=eq.${encodeURIComponent(planId)}&imported_at=is.null&select=*&order=created_at.asc`);
+}
+export async function markInbox(planId, ids) {
+  if (!ids.length) return;
+  if (LOCAL) { const db = readLocalFull(); (db.inbox || []).forEach(x => { if (x.plan_id === planId && ids.includes(x.id)) x.imported_at = now(); }); writeLocal(db); return; }
+  await sb(`plan_inbox?plan_id=eq.${encodeURIComponent(planId)}&id=in.(${encodeURIComponent(ids.map(i => `"${String(i).replace(/"/g, '')}"`).join(','))})`, { method: 'PATCH', body: { imported_at: now() } });
+}
+export async function teamPeople() {
+  let rows;
+  if (LOCAL) { const db = readLocalFull(); rows = [...db.plans.map(p => p.owner_email), ...db.shares.map(s => s.email)]; }
+  else rows = [...(await sb('plans?archived=eq.false&select=owner_email')).map(p => p.owner_email), ...(await sb('plan_shares?select=email')).map(s => s.email)];
+  return [...new Set(rows.filter(Boolean))].sort();
 }

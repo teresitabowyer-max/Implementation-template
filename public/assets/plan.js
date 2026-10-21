@@ -47,7 +47,9 @@
   async function doSave(force) {
     st.saving = 'saving'; P.renderSaveState();
     try {
-      const r = await P.api(`/api/plan?id=${encodeURIComponent(st.id)}`, { method: 'PUT', body: { data: st.data, expectedUpdatedAt: force ? null : st.updatedAt } });
+      const done = (st.inboxDone || []).slice();
+      const r = await P.api(`/api/plan?id=${encodeURIComponent(st.id)}`, { method: 'PUT', body: { data: st.data, expectedUpdatedAt: force ? null : st.updatedAt, inboxDone: done } });
+      st.inboxDone = (st.inboxDone || []).filter(x => !done.includes(x));
       st.updatedAt = r.updated_at; st.saving = 'saved'; st.savedAt = new Date();
       if (r.teamRev) st.data._teamRev = r.teamRev;
       if (r.applied && r.applied.length) {
@@ -67,6 +69,23 @@
     }
     P.renderSaveState();
   }
+  // Minutas que llegaron desde Fathom (tarea programada): se suman al plan una sola vez.
+  P.importInbox = () => {
+    const d = st.data; let n = 0; st.inboxDone = st.inboxDone || [];
+    st.inbox.forEach(x => {
+      const pl = x.payload || {};
+      if (x.kind === 'minuta' && !d.minutas.some(m => m.source && m.source === pl.source)) {
+        d.minutas.push({ id: uid(), date: pl.date || P.today, title: pl.title || 'Reunión', summary: pl.summary || '', url: pl.url || '', source: pl.source || x.id,
+          tasks: (pl.tasks || []).map(t => ({ id: uid(), text: String(t.text || '').trim(), owner: t.owner || '', email: '', due: t.due || '', done: false })).filter(t => t.text) });
+        n++;
+      }
+      if (x.kind === 'format' && pl.text) d.meetingFormat = pl.text;
+      st.inboxDone.push(x.id);
+    });
+    st.inbox = [];
+    if (n) P.toast(n === 1 ? 'Se sumó 1 minuta desde Fathom' : `Se sumaron ${n} minutas desde Fathom`);
+    P.save(true); P.render();
+  };
   P.forceSave = () => { st.conflict = null; doSave(true).then(P.render); };
   P.reloadFromServer = () => { const c = st.conflict; st.conflict = null; st.data = migrate(c.data); st.updatedAt = c.updated_at; P.render(); };
   window.addEventListener('beforeunload', e => { if (st.saving === 'pending' || st.saving === 'saving') { e.preventDefault(); e.returnValue = ''; } });
@@ -196,7 +215,7 @@
   };
 
   P.panel = k => {
-    if (k === 'plan') return P.hubspotCard() + P.summaryHtml() + P.ganttSection() + (P.views ? P.views.integrations() + P.views.stage2() : '');
+    if (k === 'plan') return P.handoffCard() + P.hubspotCard() + P.summaryHtml() + P.ganttSection() + (P.views ? P.views.integrations() + P.views.stage2() : '');
     if (k === 'reuniones') return P.views.reuniones();
     if (k === 'minutas') return P.views.minutas();
     if (k === 'producto') return P.views.producto();
@@ -250,6 +269,33 @@
 
   // ---------- resumen ----------
   // Ficha del deal de HubSpot: solo la ve el equipo Humand en modo edición.
+  // ---------- traspaso por vacaciones (solo equipo) ----------
+  P.loadHandoff = async () => {
+    if (SNAP || !st.access) return;
+    try { const r = await P.api(`/api/shares?plan=${encodeURIComponent(st.id)}`); st.handoffs = (r.shares || []).filter(x => x.handoff && (!x.expires_at || x.expires_at > new Date(Date.now() - 14 * 864e5).toISOString())); if (st.handoffs.length && st.tab === 'plan') P.render(); } catch {}
+  };
+  P.handoffCard = () => {
+    if (SNAP || !st.access || st.preview || st.printing || !(st.handoffs || []).length) return '';
+    const f = d => d ? new Date(d.length === 10 ? `${d}T12:00:00` : d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', timeZone: 'America/Argentina/Buenos_Aires' }) : '';
+    return st.handoffs.map(h => {
+      const mine = h.email === st.user?.email, owner = st.access === 'owner';
+      const ended = h.expires_at && h.expires_at < new Date().toISOString();
+      const who = (h.email || '').split('@')[0].split(/[._-]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+      return `<details class="ho-card no-print" ${mine || owner ? 'open' : ''}><summary>🏖 <b>Traspaso por vacaciones</b><span class="chip">${mine ? 'Lo cubrís vos' : `Cubre ${esc(who)}`}</span><span class="chip">${h.starts_at ? `${f(h.starts_at)} → ` : 'hasta '}${f(h.expires_at)}${ended ? ' · terminó' : ''}</span>${h.priority ? `<span class="chip ${h.priority === 'Alta' ? 'err' : ''}">Prioridad ${esc(h.priority)}</span>` : ''}<span class="muted" style="margin-left:auto;font-size:11px">Solo equipo Humand · <a href="/#traspasos">ver tabla</a></span></summary>
+        <div class="ho-grid">
+          ${h.info ? `<div><h5>Info general</h5><p>${esc(h.info)}</p></div>` : ''}
+          ${h.cards ? `<div><h5>Cards asociadas</h5><p>${esc(h.cards)}</p></div>` : ''}
+          ${h.format ? `<div><h5>Formato sugerido</h5><p>${esc(h.format)}</p></div>` : ''}
+          <div class="ho-notes"><h5>Comentarios para la vuelta</h5>${mine || owner ? `<textarea class="input" rows="3" data-ho-notes="${esc(h.email)}" placeholder="Qué pasó mientras no estaba, qué quedó pendiente…">${esc(h.return_notes || '')}</textarea><button class="btn sm" data-ho-save="${esc(h.email)}">Guardar comentarios</button>` : `<p>${esc(h.return_notes || '—')}</p>`}</div>
+        </div></details>`;
+    }).join('');
+  };
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-ho-save]'); if (!b) return;
+    const email = b.dataset.hoSave; const ta = document.querySelector(`[data-ho-notes="${CSS.escape(email)}"]`);
+    try { await P.api('/api/shares', { method: 'PATCH', body: { plan: st.id, email, returnNotes: ta.value } }); const h = st.handoffs.find(x => x.email === email); if (h) h.return_notes = ta.value; P.toast('Comentarios guardados'); } catch (err) { alert(err.message); }
+  });
+
   P.hubspotCard = () => {
     const it = st.data.internal || {};
     const rl = it.redlist && P.editing() ? `<div class="rl-banner no-print">🚩 <b>Cliente en redlist</b>${it.redlistReason ? ` · ${esc(it.redlistReason)}` : ''}${it.redlistSince ? `<span class="muted"> · desde el ${new Date(it.redlistSince).toLocaleDateString('es-AR')}</span>` : ''} <span class="muted" style="margin-left:auto">Solo equipo Humand</span></div>` : '';
@@ -426,7 +472,7 @@
         if (!st.id) throw new Error('Link inválido');
         const [planRes, me] = await Promise.all([P.api(`/api/plan?id=${encodeURIComponent(st.id)}`), P.api('/api/me').catch(() => ({}))]);
         st.data = migrate(planRes.plan.data); st.updatedAt = planRes.plan.updated_at; st.canEdit = planRes.canEdit; st.access = planRes.access || null; st.ownerEmail = planRes.plan.owner_email || null;
-        st.user = me.user; st.config = me.config || {};
+        st.user = me.user; st.config = me.config || {}; st.inbox = planRes.inbox || [];
         if (new URLSearchParams(location.search).has('cliente')) st.preview = true;
       }
       P.computeDayW();
@@ -434,6 +480,8 @@
       if (!SNAP && P.loadUpdates) P.loadUpdates();
       if (P.editing() && !st.data.holidays.list.length && P.fetchHolidays) P.fetchHolidays(true);
       if (P.editing() && P.loadReminders) P.loadReminders();
+      if (P.editing() && st.inbox.length) P.importInbox();
+      if (P.loadHandoff) P.loadHandoff();
     } catch (e) {
       P.$('#app').innerHTML = `<div class="wrap" style="padding-top:80px"><div class="empty"><h3 style="margin-bottom:8px">No pudimos abrir el plan</h3>${esc(e.message)}</div></div>`;
     }

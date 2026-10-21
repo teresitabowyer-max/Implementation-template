@@ -29,7 +29,7 @@
     <li>Tocá <b>🟠 Plan desde HubSpot</b> en tu barra de favoritos.</li>
     <li>Se abre una pestaña con el plan nuevo precargado: revisá y confirmá el país, los módulos y las fechas.</li>
   </ol>
-  <div class="what"><b>Qué trae del deal:</b> nombre de la empresa, país (Main Country), etapa del deal, CX Stage, piloto (meses), Account Executive, Onboarding Leader, usuarios, fecha de implementación y de lanzamiento tentativo, add-ons, integraciones, herramientas de RR. HH. y la información del kick-off ("Deal information for Onboarding"). Con el kick-off sugiere los módulos a implementar.</div>
+  <div class="what"><b>Qué trae del deal:</b> nombre de la empresa, país (Main Country), etapa del deal, CX Stage, piloto (meses), Account Executive, Onboarding Leader, usuarios, fecha de implementación y de lanzamiento tentativo, add-ons, integraciones, herramientas de RR. HH. la información del kick-off ("Deal information for Onboarding") y los contactos asociados al deal (el Onboarding Leader los confirma). Con el kick-off sugiere los módulos a implementar.</div>
 </div>
 <script>
 (function () {
@@ -53,11 +53,22 @@
         return '';
       };
       var kick = field('Deal information for Onboarding');
+      // Contactos asociados al deal (tarjeta "Contacts" de la derecha): nombre, mail y cargo si aparece.
+      var contacts = [], seen = {};
+      document.querySelectorAll('a[href*="/record/0-1/"],a[href*="/contact/"]').forEach(function (a) {
+        var nm = txt(a.innerText).split('\n')[0]; if (!nm || nm.length > 80 || seen[nm] || /view all|ver todos|^\d+$/i.test(nm)) return;
+        var box = a, k = 0; while (box && k < 7) { box = box.parentElement; k++; if (box && box.innerText && /@/.test(box.innerText)) break; }
+        var bt = (box && box.innerText) || '', em = '';
+        var mt = box && box.querySelector('a[href^="mailto:"]'); if (mt) em = mt.getAttribute('href').slice(7).split('?')[0];
+        if (!em) { var m = bt.match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/); if (m) em = m[0]; }
+        var jt = bt.match(/(?:Job title|Cargo)\s*:?\s*\n?([^\n]+)/i);
+        seen[nm] = 1; contacts.push({ name: nm, email: em, role: jt ? txt(jt[1]) : '' });
+      });
       var d = { v: 1, url: location.origin + location.pathname, name: txt(document.title).replace(/\s*[|·-]\s*HubSpot.*$/i, ''),
         stage: get('Deal Stage'), cxStage: get('CX Stage'), country: get('Main Country'), pilot: get('Duration of the pilot/bonus (in months)'),
         ae: get('Account Executive'), leader: get('Onboarding Leader'), users: get('Users', 'Users by contract'),
         implDate: get('Implementation date'), launch: get('Tentative launch date'), integrations: get('Integrations System'), intModules: get('Integration Modules'),
-        hrTools: get('HR Tools in Use'), addons: get('Add-ons'), community: get('Community Name'), kickoff: kick.slice(0, 6000) };
+        hrTools: get('HR Tools in Use'), addons: get('Add-ons'), community: get('Community Name'), kickoff: kick.slice(0, 6000), contacts: contacts.slice(0, 10) };
       var s = btoa(unescape(encodeURIComponent(JSON.stringify(d)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
       window.open(BASE + '/#hs=' + s, '_blank');
     })();

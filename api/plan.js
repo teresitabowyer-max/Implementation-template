@@ -1,5 +1,5 @@
 import { json, readBody, query, currentUser, methodNotAllowed } from './_lib/http.js';
-import { getPlan, updatePlan, archivePlan, accessFor, canEdit, addActivity } from './_lib/db.js';
+import { getPlan, updatePlan, archivePlan, accessFor, canEdit, addActivity, pendingInbox, markInbox } from './_lib/db.js';
 import { diffPlan } from './_lib/activity.js';
 
 // GET es público (link del cliente, solo lectura). Editar requiere ser dueño o tenerlo compartido con edición.
@@ -17,12 +17,14 @@ export default async function handler(req, res) {
       return json(res, 200, {
         plan: { id: plan.id, data, updated_at: plan.updated_at, updated_by: access ? plan.updated_by : undefined, owner_email: access ? plan.owner_email : undefined },
         canEdit: canEdit(access), access,
+        // Minutas nuevas que llegaron desde Fathom: el editor las suma al plan y las confirma al guardar.
+        inbox: canEdit(access) ? (await pendingInbox(id).catch(() => [])).map(x => ({ id: x.id, kind: x.kind, payload: x.payload })) : undefined,
       });
     }
     if (req.method === 'PATCH') return clientCheck(req, res, plan, access);
     if (!canEdit(access)) return json(res, 403, { error: user ? 'No tenés permiso para editar este plan. Pedile al responsable que te lo comparta.' : 'Solo el equipo de Humand puede editar este plan.' });
     if (req.method === 'PUT') {
-      let { data, expectedUpdatedAt } = await readBody(req);
+      let { data, expectedUpdatedAt, inboxDone } = await readBody(req);
       if (!data || typeof data !== 'object') return json(res, 400, { error: 'Datos inválidos' });
       if (JSON.stringify(data).length > 4_000_000) return json(res, 413, { error: 'El plan es demasiado grande (¿logo muy pesado?)' });
       // Si desde que cargaste el plan solo hubo tildes del cliente (ningún otro guardado del equipo),
@@ -37,6 +39,7 @@ export default async function handler(req, res) {
       if (out.notFound) return json(res, 404, { error: 'Plan no encontrado' });
       if (out.conflict) return json(res, 409, { error: 'Otra persona guardó cambios mientras editabas.', plan: out.current });
       try { await addActivity(id, user.email, diffPlan(plan.data, data)); } catch (e) { console.error('historial', e.message); }
+      if (Array.isArray(inboxDone) && inboxDone.length) { try { await markInbox(id, inboxDone.slice(0, 50).map(String)); await addActivity(id, 'Fathom', ['Se sumaron al plan las novedades de Fathom (minutas y formato de reunión)']); } catch (e) { console.error('bandeja', e.message); } }
       return json(res, 200, { updated_at: out.plan.updated_at, teamRev: data._teamRev, applied });
     }
     if (req.method === 'DELETE') {

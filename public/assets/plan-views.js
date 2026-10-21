@@ -115,7 +115,7 @@
     if (!list.length) return html + `<div class="empty">${ed ? 'Pegá la minuta de la reunión y detectamos las tareas automáticamente. Después podés programar recordatorios por mail.' : 'Todavía no hay minutas cargadas.'}</div>`;
     html += `<div style="display:flex;flex-direction:column;gap:16px">${list.map(m => `
       <article class="minuta">
-        <header><div style="flex:1"><div class="row" style="gap:8px;margin-bottom:4px"><span class="chip accent">${m.date ? D.long(m.date) : 'Sin fecha'}</span></div><h3>${esc(m.title || 'Reunión')}</h3></div>
+        <header><div style="flex:1"><div class="row" style="gap:8px;margin-bottom:4px"><span class="chip accent">${m.date ? D.long(m.date) : 'Sin fecha'}</span></div><h3>${esc(m.title || 'Reunión')}</h3>${ed && m.url ? `<a class="src-link" href="${esc(m.url)}" target="_blank" rel="noopener">🎥 Ver en Fathom</a>` : ''}</div>
           ${ed ? `<button class="icon-btn" data-minuta="${m.id}" title="Editar minuta">✎ Editar</button><button class="icon-btn" data-delminuta="${m.id}" title="Eliminar">🗑</button>` : ''}</header>
         ${m.summary ? `<div class="sum">${esc(m.summary)}</div>` : ''}
         ${(m.tasks || []).length ? `<div style="display:flex;flex-direction:column;gap:6px">${m.tasks.map(t => V.task(m, t)).join('')}</div>` : ''}

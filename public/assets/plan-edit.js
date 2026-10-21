@@ -531,23 +531,46 @@
   // ---------- compartir con el equipo ----------
   const who = e => (e || '').split('@')[0].split(/[._-]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
   async function openShare() {
-    let info;
-    try { info = await P.api(`/api/shares?plan=${encodeURIComponent(st.id)}`); } catch (e) { return alert(e.message); }
+    let info, cfg;
+    try { [info, cfg] = await Promise.all([P.api(`/api/shares?plan=${encodeURIComponent(st.id)}`), P.api('/api/handoff?settings=1').catch(() => ({ settings: {}, people: [] }))]); } catch (e) { return alert(e.message); }
+    const S = cfg.settings || {};
     const dom = st.config.domain || 'humand.co';
     const today = D.today();
     const rows = info.shares.map(sh => {
       const expired = sh.expires_at && sh.expires_at < new Date().toISOString();
       return `<div class="share-row"><div><b>${esc(who(sh.email))}</b> <span class="muted">${esc(sh.email)}</span><br>
-        <small class="muted">${sh.role === 'view' ? 'Solo ver' : 'Puede editar'} · ${sh.expires_at ? (expired ? '<span style="color:var(--err-600,#c00)">venció</span> el ' : 'hasta el ') + new Date(sh.expires_at).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) : 'sin vencimiento'}</small></div>
+        <small class="muted">${sh.handoff ? '🏖 Traspaso · ' : ''}${sh.role === 'view' ? 'Solo ver' : 'Puede editar'} · ${sh.expires_at ? (expired ? '<span style="color:var(--err-600,#c00)">venció</span> el ' : 'hasta el ') + new Date(sh.expires_at).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' }) : 'sin vencimiento'}</small></div>
         <button class="btn sm ghost" data-unshare="${esc(sh.email)}">Quitar</button></div>`;
     }).join('');
     P.openLayer(`<div class="modal" role="dialog" aria-label="Compartir plan" style="width:min(560px,100%)">
       <header><h3>👥 Compartir con el equipo</h3><button class="icon-btn" data-x>✕</button></header>
       <p class="muted" style="font-size:13px">Tu compañero lo va a ver en su carpeta <b>“Compartidos conmigo”</b>, separado de sus proyectos. Ideal para cubrirte en vacaciones: poné una fecha y el acceso se quita solo.</p>
       <div class="grid3" style="grid-template-columns:2fr 1fr 1fr">
-        <label class="field"><span>Mail</span><input class="input" id="s-email" placeholder="nombre@${esc(dom)}"></label>
+        <label class="field"><span>Mail</span><input class="input" id="s-email" placeholder="nombre@${esc(dom)}" list="s-people"></label>
         <label class="field"><span>Permiso</span><select class="input" id="s-role"><option value="edit">Puede editar</option><option value="view">Solo ver</option></select></label>
         <label class="field"><span>Hasta (opcional)</span><input type="date" class="input" id="s-until" min="${today}"></label>
+      </div>
+      <datalist id="s-people">${(cfg.people || []).map(e => `<option value="${esc(e)}">`).join('')}</datalist>
+      <label class="switch" style="margin:4px 0"><input type="checkbox" id="s-ho"> <span><b>🏖 Es un traspaso por vacaciones</b> · suma el plan a la tabla de traspasos del equipo</span></label>
+      <div id="s-ho-box" class="ho-box" hidden>
+        <div class="grid3" style="grid-template-columns:1fr 1fr 1fr">
+          <label class="field"><span>Me voy el</span><input type="date" class="input" id="s-from" value="${today}"></label>
+          <label class="field"><span>Vuelvo el (el acceso se corta ese día)</span><input type="date" class="input" id="s-until2" min="${today}"></label>
+          <label class="field"><span>Prioridad</span><select class="input" id="s-prio"><option>Alta</option><option selected>Media</option><option>Baja</option></select></label>
+        </div>
+        <label class="field"><span>Info general · contexto y pendientes para quien te cubre</span><textarea class="input" id="s-info" rows="4" placeholder="Ej.: Lanzamiento con Comunicación + Vacaciones la 2.ª semana de octubre. Revisar cargas masivas."></textarea></label>
+        <label class="field"><span>Cards asociadas</span><textarea class="input" id="s-cards" rows="2" placeholder="Cards de Jira / producto abiertas para este cliente"></textarea></label>
+        <label class="field"><span>Formato sugerido (opcional: si no lo completás, se toma de Fathom o de la agenda)</span><input class="input" id="s-format" value="${esc(st.data.meetingFormat || '')}" placeholder="Ej.: Reunión semanal martes 15 hs"></label>
+        <div class="creds">
+          <h4>🔑 Credenciales de ingreso a las comunidades</h4>
+          <p class="muted" style="font-size:12px;margin:0 0 6px">Se guardan cifradas. Solo las puede ver quien te cubre (y queda registrado). La tabla del equipo muestra únicamente el usuario.</p>
+          <div class="grid3" style="grid-template-columns:1fr 1fr 1fr">
+            <label class="field"><span>Usuario</span><input class="input" id="s-cuser" value="${esc(S.user || st.user?.email || '')}" autocomplete="off"></label>
+            <label class="field"><span>Contraseña${S.hasPass ? ' (guardada)' : ''}</span><input type="password" class="input" id="s-cpass" placeholder="${S.hasPass ? '•••••••• (dejá vacío para usar la guardada)' : 'Cargala la primera vez'}" autocomplete="new-password"></label>
+            <label class="field"><span>Link a tu CMB (opcional)</span><input class="input" id="s-cmb" value="${esc(S.cmb || '')}" placeholder="https://app.notion.com/…"></label>
+          </div>
+          <label class="switch hs-confirm"><input type="checkbox" id="s-cok"> <span>Confirmo que las credenciales están OK</span></label>
+        </div>
       </div>
       <div class="row" style="justify-content:flex-end"><button class="btn" data-share>Compartir</button></div>
       <h4 style="margin-top:8px">Con acceso</h4>
@@ -559,11 +582,21 @@
       <footer><span style="flex:1"></span><button class="btn ghost" data-x>Cerrar</button></footer></div>`, {
       onMount: root => {
         root.querySelectorAll('[data-x]').forEach(b => b.onclick = P.closeLayer);
+        const ho = root.querySelector('#s-ho'), box = root.querySelector('#s-ho-box');
+        ho.onchange = () => { box.hidden = !ho.checked; root.querySelector('#s-until').closest('.field').style.visibility = ho.checked ? 'hidden' : ''; };
         root.querySelector('[data-share]').onclick = async () => {
           const email = val(root, '#s-email'); if (!email) return root.querySelector('#s-email').focus();
+          const body = { plan: st.id, email, role: val(root, '#s-role'), until: val(root, '#s-until') || null };
+          if (ho.checked) {
+            const until = val(root, '#s-until2'); if (!until) { alert('Poné la fecha de vuelta.'); return root.querySelector('#s-until2').focus(); }
+            if (!S.hasPass && !val(root, '#s-cpass')) { alert('Cargá la contraseña la primera vez (después queda guardada).'); return root.querySelector('#s-cpass').focus(); }
+            if (!root.querySelector('#s-cok').checked) { alert('Confirmá que las credenciales están OK.'); return root.querySelector('#s-cok').focus(); }
+            Object.assign(body, { handoff: true, until, from: val(root, '#s-from') || null, priority: val(root, '#s-prio'), info: val(root, '#s-info'), cards: val(root, '#s-cards'), format: val(root, '#s-format'),
+              creds: { ok: true, user: val(root, '#s-cuser'), pass: root.querySelector('#s-cpass').value || undefined, cmb: val(root, '#s-cmb') } });
+          }
           try {
-            await P.api('/api/shares', { method: 'POST', body: { plan: st.id, email, role: val(root, '#s-role'), until: val(root, '#s-until') || null } });
-            P.toast(`Compartido con ${who(email)}${st.config.mail ? ' · le llegó un aviso por mail' : ''}`); openShare();
+            await P.api('/api/shares', { method: 'POST', body });
+            P.toast(`Compartido con ${who(email)}${st.config.mail ? ' · le llegó un aviso por mail' : ''}`); openShare(); P.loadHandoff && P.loadHandoff();
           } catch (e) { alert(e.message); }
         };
         root.querySelectorAll('[data-unshare]').forEach(b => b.onclick = async () => {

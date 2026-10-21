@@ -73,3 +73,39 @@ create table if not exists public.product_updates (
 );
 create index if not exists product_updates_date_idx on public.product_updates (date desc);
 alter table public.product_updates enable row level security;
+
+-- v5: una sola fila por novedad (en Notion hay páginas cargadas dos veces)
+alter table public.product_updates add column if not exists dedupe_key text generated always as (coalesce(module,'') || '|' || lower(btrim(title))) stored;
+create unique index if not exists product_updates_dedupe_key_idx on public.product_updates (dedupe_key);
+
+-- v6: traspasos por vacaciones, credenciales por persona y bandeja de minutas de Fathom
+alter table public.plan_shares
+  add column if not exists handoff boolean not null default false,
+  add column if not exists starts_at date,
+  add column if not exists priority text,
+  add column if not exists info text,
+  add column if not exists cards text,
+  add column if not exists format text,
+  add column if not exists return_notes text,
+  add column if not exists updated_at timestamptz;
+create index if not exists plan_shares_handoff_idx on public.plan_shares (handoff) where handoff;
+
+create table if not exists public.user_settings (
+  email text primary key,
+  cred_user text,
+  cred_pass_enc text,          -- cifrada (AES-256-GCM) con una clave derivada de SESSION_SECRET
+  cmb_url text,
+  updated_at timestamptz not null default now()
+);
+alter table public.user_settings enable row level security;
+
+create table if not exists public.plan_inbox (
+  id text primary key,         -- p. ej. fathom:<recording_id>:<plan_id>
+  plan_id text not null references public.plans(id) on delete cascade,
+  kind text not null,          -- minuta | format
+  payload jsonb not null,
+  created_at timestamptz not null default now(),
+  imported_at timestamptz
+);
+create index if not exists plan_inbox_plan_idx on public.plan_inbox (plan_id) where imported_at is null;
+alter table public.plan_inbox enable row level security;
