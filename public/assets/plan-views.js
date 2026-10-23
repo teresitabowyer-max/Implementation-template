@@ -71,11 +71,14 @@
     const running = rows.filter(r => r.start < w.mon && (r.end || r.start) > w.sun);
     const short = r => r.type === 'module' ? r.name.split(' (')[0] : r.type === 'integration' ? (r.integration?.name || r.name) : (r.label || r.name);
     const parts = [];
-    ending.filter(r => r.type === 'module').forEach(r => parts.push('Cierre ' + short(r)));
     starting.forEach(r => parts.push(r.type === 'integration' ? 'Arranque ' + (r.integration?.name || short(r)) : r.type === 'module' ? short(r) : r.name));
     ending.filter(r => r.type !== 'module').forEach(r => parts.push(r.name));
+    if (!parts.length) ending.filter(r => r.type === 'module').forEach(r => parts.push('Cierre ' + short(r)));
     const title = parts.length ? [...new Set(parts)].slice(0, 4).join(' · ') : running.length ? 'Continuación de ' + running.filter(r => r.type === 'module').map(short).slice(0, 3).join(', ') : 'Seguimiento';
-    const chips = [...new Set([...starting, ...running, ...ending].map(short))];
+    // Temas de la llamada: lo que arranca o sigue en curso esa semana. Lo que ya cierra (se vio en la llamada anterior)
+    // queda en la línea "Cierran", salvo que esa semana no haya nada más.
+    const chips = [...new Set([...starting, ...running].map(short))];
+    if (!chips.length) ending.forEach(r => chips.push(short(r)));
     return { starting, ending, running, title, chips };
   };
 
@@ -90,7 +93,7 @@
       const li = (label, arr) => arr.length ? `<div><b>${label}:</b> ${arr.map(r => esc(r.name)).join(' · ')}</div>` : '';
       return `<details class="wk ${cur ? 'current' : ''}" ${cur || st.printing ? 'open' : ''}>
         <summary><div class="wn"><b>S${w.i}</b><small>${D.range(w.mon, w.sun)}</small></div>
-          <div><div class="wt">${esc(ov.title || info.title)}</div><div class="chips">${info.chips.slice(0, 6).map(c => `<span class="chip accent">${esc(c)}</span>`).join('')}${hs.map(h => `<span class="chip err">Feriado ${D.short(h.date)}</span>`).join('')}${cur ? '<span class="chip ok">Semana actual</span>' : ''}</div></div>
+          <div><div class="wt">${esc(ov.title || info.title)}</div><div class="chips">${info.chips.map(c => `<span class="chip accent">${esc(c)}</span>`).join('')}${hs.map(h => `<span class="chip err">Feriado ${D.short(h.date)}</span>`).join('')}${cur ? '<span class="chip ok">Semana actual</span>' : ''}</div></div>
           <span class="arrow">▸</span></summary>
         <div class="body">
           ${li('Arrancan', info.starting)}${li('Continúan', info.running)}${li('Cierran', info.ending)}
